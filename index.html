@@ -185,7 +185,7 @@
         let gameState = 'menu';
         let score = 0, distance = 0, frame = 0, shake = 0, lastTime = 0;
         
-        let track = [], forkBranch = []; 
+        let track = [], forkBranch = [], abandonedRoad = []; 
         let decorations = [], potholes = [];
         
         const BASE_TRACK_WIDTH = 160, BASE_SEGMENT_LENGTH = 35;
@@ -240,7 +240,7 @@
         }
 
         function initTrack() {
-            track = []; forkBranch = []; decorations = []; potholes = []; 
+            track = []; forkBranch = []; abandonedRoad = []; decorations = []; potholes = []; 
             trackProgress = 0; currentTrackAngle = 0; targetAngle = 0;
             segmentsSincePothole = 0;
             segmentsSinceLastFork = 0;
@@ -271,7 +271,6 @@
             const newX = last.x + Math.sin(currentTrackAngle) * segLen;
             const newY = last.y - Math.cos(currentTrackAngle) * segLen;
             
-            // ИСПРАВЛЕНО: добавлен перенос строки и точка с запятой
             track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
             segmentsSincePothole++;
@@ -284,14 +283,12 @@
                 potholes.push({ x: newX + perpX, y: newY + perpY, size: 15 * SCALE, active: true });
             }
 
+            // ИСПРАВЛЕНИЕ 1: Строгая проверка, чтобы елки не спавнились на второй дороге
             let canSpawnTree = true;
             if (forkBranch.length > 0) {
-                const treeX = newX + Math.cos(currentTrackAngle) * ((BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE));
-                const treeY = newY + Math.sin(currentTrackAngle) * ((BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE));
-                
                 for (let i = 0; i < forkBranch.length; i++) {
-                    const d = Math.hypot(treeX - forkBranch[i].x, treeY - forkBranch[i].y);
-                    if (d < (BASE_TRACK_WIDTH * SCALE / 2) + (20 * SCALE)) {
+                    const d = Math.hypot(newX - forkBranch[i].x, newY - forkBranch[i].y);
+                    if (d < (BASE_TRACK_WIDTH * SCALE / 2) + (40 * SCALE)) {
                         canSpawnTree = false;
                         break;
                     }
@@ -310,11 +307,12 @@
                 });
             }
 
+            // ИСПРАВЛЕНИЕ 2: Более резкий и гарантированный поворот развилки
             if (segmentsSinceLastFork > 180 && forkBranch.length === 0) {
                 segmentsSinceLastFork = 0;
                 forkSwitched = false;
                 const dir = Math.random() > 0.5 ? 1 : -1;
-                const branchAngle = currentTrackAngle + (dir * 0.6); 
+                const branchAngle = currentTrackAngle + (dir * 0.9); // Увеличен угол для явного расхождения
                 
                 let bx = newX;
                 let by = newY;
@@ -322,7 +320,11 @@
                 
                 forkBranch = [{ x: bx, y: by, angle: bAngle }];
                 for (let i = 0; i < 60; i++) {
-                    bAngle += (Math.random() - 0.5) * 0.25; 
+                    // Первые 15 сегментов принудительно уводим в сторону, потом легкое блуждание
+                    let wander = (Math.random() - 0.5) * 0.25;
+                    if (i < 15) wander = (Math.random() * 0.15) * dir; 
+                    
+                    bAngle += wander;
                     bx += Math.sin(bAngle) * segLen;
                     by -= Math.cos(bAngle) * segLen;
                     forkBranch.push({ x: bx, y: by, angle: bAngle });
@@ -331,6 +333,7 @@
 
             if (track.length > 400) {
                 track.splice(0, 80);
+                if (abandonedRoad.length > 0) abandonedRoad.splice(0, 80);
                 
                 let w = 0;
                 const maxD = (650 * SCALE) ** 2;
@@ -382,6 +385,8 @@
                 const distToBranch = Math.hypot(car.x - midBranch.x, car.y - midBranch.y);
                 
                 if (distToBranch < 100 * SCALE) {
+                    // ИСПРАВЛЕНИЕ 3: Сохраняем старую дорогу для плавного исчезновения
+                    abandonedRoad = [...track];
                     track = forkBranch;
                     currentTrackAngle = forkBranch[forkBranch.length - 1].angle;
                     forkBranch = []; 
@@ -393,6 +398,7 @@
             let minDist = Infinity;
             const checkArrays = [track];
             if (forkBranch.length > 0) checkArrays.push(forkBranch);
+            if (abandonedRoad.length > 0) checkArrays.push(abandonedRoad);
 
             for (let arr of checkArrays) {
                 const startCheck = Math.max(0, arr.length - 120);
@@ -483,10 +489,10 @@
 
             const tw = BASE_TRACK_WIDTH * SCALE;
 
-            const drawPath = (pathArr, isFork) => {
+            const drawPath = (pathArr, isFork, alphaOverride = 1.0) => {
                 if (pathArr.length < 2) return;
                 const startIdx = Math.max(0, pathArr.length - 120);
-                const alpha = isFork ? 0.4 : 0.5;
+                const alpha = (isFork ? 0.4 : 0.5) * alphaOverride;
                 const color = isFork ? '#5a4b6a' : '#6a5b8a';
 
                 ctx.strokeStyle = `rgba(90, 70, 110, ${alpha})`;
@@ -498,38 +504,52 @@
                 ctx.strokeStyle = color; ctx.lineWidth = tw; ctx.stroke();
                 ctx.strokeStyle = '#1c1c2e'; ctx.lineWidth = tw - 6 * SCALE; ctx.stroke();
                 
-                ctx.strokeStyle = `rgba(110, 140, 170, ${isFork ? 0.25 : 0.4})`; 
+                ctx.strokeStyle = `rgba(110, 140, 170, ${(isFork ? 0.25 : 0.4) * alphaOverride})`; 
                 ctx.lineWidth = 2 * SCALE;
                 ctx.setLineDash([15 * SCALE, 25 * SCALE]); ctx.stroke(); ctx.setLineDash([]);
             };
 
+            // ИСПРАВЛЕНИЕ 3 (продолжение): Плавное исчезновение старой дороги
+            if (abandonedRoad.length > 0) {
+                const distToAbandoned = Math.hypot(car.x - abandonedRoad[0].x, car.y - abandonedRoad[0].y);
+                const fadeAlpha = Math.max(0, 1 - (distToAbandoned / (300 * SCALE)));
+                if (fadeAlpha > 0.05) {
+                    drawPath(abandonedRoad, false, fadeAlpha);
+                } else {
+                    abandonedRoad = []; // Полностью удаляем, когда стала невидимой
+                }
+            }
+
             drawPath(track, false);
             
-            if (forkBranch.length > 0) {
-                const splitPoint = forkBranch[0];
-                ctx.fillStyle = '#6a5b8a';
-                ctx.beginPath();
-                ctx.arc(splitPoint.x, splitPoint.y, (tw / 2) + 4, 0, Math.PI * 2);
-                ctx.fill();
+            // ИСПРАВЛЕНИЕ 5: Идеальный стык без наслоения фиолетовых краев
+            if (forkBranch.length > 0 && !forkSwitched) {
+                const splitPt = forkBranch[0];
+                const angle = currentTrackAngle;
                 
+                ctx.save();
+                ctx.translate(splitPt.x, splitPt.y);
+                ctx.rotate(angle);
+                
+                // 1. Маскируем уродливое наложение round-cap цветом асфальта
                 ctx.fillStyle = '#1c1c2e';
+                ctx.fillRect(-12 * SCALE, - (tw / 2) - 4, 24 * SCALE, tw + 8);
+                
+                // 2. Восстанавливаем центральную пунктирную линию поверх маски
+                ctx.strokeStyle = 'rgba(110, 140, 170, 0.4)';
+                ctx.lineWidth = 2 * SCALE;
+                ctx.setLineDash([15 * SCALE, 25 * SCALE]);
                 ctx.beginPath();
-                ctx.arc(splitPoint.x, splitPoint.y, (tw / 2) - 2, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.moveTo(-12 * SCALE, 0);
+                ctx.lineTo(12 * SCALE, 0);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                ctx.restore();
 
                 drawPath(forkBranch, true);
             }
-
-            if (forkBranch.length > 0 && !forkSwitched) {
-                const marker = forkBranch[2];
-                ctx.fillStyle = 'rgba(200, 120, 144, 0.9)';
-                ctx.shadowBlur = 12 * SCALE;
-                ctx.shadowColor = '#c87890';
-                ctx.beginPath();
-                ctx.arc(marker.x, marker.y, 6 * SCALE, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.shadowBlur = 0;
-            }
+            // ИСПРАВЛЕНИЕ 4: Красная точка удалена
 
             const viewD = (600 * SCALE) ** 2;
             
