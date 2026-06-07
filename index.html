@@ -77,7 +77,6 @@
         .touch-left.active { background: rgba(100, 140, 180, 0.06); }
         .touch-right.active { background: rgba(138, 107, 176, 0.06); }
 
-        /* Специальный стиль для экрана Game Over, чтобы тап работал везде */
         #gameoverScreen { cursor: pointer; justify-content: center; }
         .tap-hint { font-size: 12px; color: #5b7a9a; margin-top: 15px; animation: blink 1.5s infinite; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -100,7 +99,6 @@
         </div>
     </div>
 
-    <!-- Главное меню -->
     <div class="screen" id="mainMenu">
         <div class="title">NEON<br>DRIFT</div>
         <div class="subtitle">TMA EDITION</div>
@@ -108,7 +106,6 @@
         <div class="btn" id="btnProfile">ПРОФИЛЬ</div>
     </div>
 
-    <!-- Экран профиля -->
     <div class="screen hidden" id="profileScreen">
         <div class="profile-box">
             <div class="profile-name" id="profileName">Гонщик</div>
@@ -125,7 +122,6 @@
         <div class="btn" id="btnBackToMenu" style="margin-top: 10px;">НАЗАД</div>
     </div>
 
-    <!-- Экран конца игры (Тап в любое место = рестарт) -->
     <div class="screen hidden" id="gameoverScreen">
         <div class="title" style="font-size: 32px; -webkit-text-fill-color: #c87890; color: #c87890;">ВЫЛЕТ</div>
         <div class="profile-box" style="padding: 20px; margin-bottom: 10px; min-width: 250px;">
@@ -181,9 +177,10 @@
 
         let gameState = 'menu';
         let score = 0, frame = 0, shake = 0, lastTime = 0;
-        let track = [], decorations = [], obstacles = [];
+        let track = [], decorations = [], potholes = [];
         const BASE_TRACK_WIDTH = 160, BASE_SEGMENT_LENGTH = 35;
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
+        let lastPotholeIndex = -999; // Для контроля дистанции между ямами
 
         const MAX_PARTICLES = 150;
         const particles = Array.from({ length: MAX_PARTICLES }, () => ({
@@ -201,7 +198,10 @@
             p.vy = Math.cos(angle + spread) * speed;
         }
 
-        const car = { x: 0, y: 0, width: 20, height: 38, angle: 0, vx: 0, vy: 0, baseSpeed: 8.0, currentSpeed: 8.0, driftFactor: 0 };
+        const car = { 
+            x: 0, y: 0, width: 20, height: 38, angle: 0, vx: 0, vy: 0, 
+            baseSpeed: 8.0, currentSpeed: 8.0, driftFactor: 0, skidTime: 0 
+        };
         let input = { left: false, right: false };
 
         function drawTree(ctx, x, y, size, color) {
@@ -216,37 +216,31 @@
             ctx.fill();
         }
 
-        // Отрисовка препятствия (Неоновый красный ромб)
-        function drawObstacle(ctx, x, y, size) {
-            ctx.fillStyle = '#ff2a4d';
+        // Отрисовка ямы (темное пятно с легкой текстурой)
+        function drawPothole(ctx, x, y, size) {
+            // Внешняя тень ямы
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
             ctx.beginPath();
-            ctx.moveTo(x, y - size);
-            ctx.lineTo(x + size * 0.7, y);
-            ctx.lineTo(x, y + size);
-            ctx.lineTo(x - size * 0.7, y);
-            ctx.closePath();
+            ctx.ellipse(x, y, size, size * 0.6, 0, 0, Math.PI * 2);
             ctx.fill();
-            
-            // Яркая сердцевина для контраста (без shadowBlur для FPS)
-            ctx.fillStyle = '#ff8fa3';
+            // Внутренняя часть (глубина)
+            ctx.fillStyle = 'rgba(20, 20, 30, 0.8)';
             ctx.beginPath();
-            ctx.moveTo(x, y - size * 0.4);
-            ctx.lineTo(x + size * 0.3, y);
-            ctx.lineTo(x, y + size * 0.4);
-            ctx.lineTo(x - size * 0.3, y);
-            ctx.closePath();
+            ctx.ellipse(x, y, size * 0.65, size * 0.4, 0, 0, Math.PI * 2);
             ctx.fill();
         }
 
         function initTrack() {
-            track = []; decorations = []; obstacles = []; 
+            track = []; decorations = []; potholes = []; 
             trackProgress = 0; currentTrackAngle = 0; targetAngle = 0;
+            lastPotholeIndex = -999;
             for (let i = 0; i < 100; i++) addTrackSegment();
             
             car.x = track[20].x; car.y = track[20].y; car.angle = track[20].angle;
             car.vx = Math.sin(car.angle) * car.baseSpeed * SCALE;
             car.vy = -Math.cos(car.angle) * car.baseSpeed * SCALE;
             car.currentSpeed = car.baseSpeed * SCALE;
+            car.skidTime = 0;
         }
 
         function addTrackSegment() {
@@ -262,11 +256,27 @@
             const newY = last.y - Math.cos(currentTrackAngle) * segLen;
             track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
-            // Генерация препятствий (5% шанс, но не чаще чем раз в 8 сегментов)
-            if (Math.random() < 0.05 && trackProgress > 8) {
-                obstacles.push({ x: newX, y: newY, active: true, size: 18 * SCALE });
+            // 1. БЕЗОПАСНАЯ ЗОНА: Первые 20 сегментов без ям
+            // 2. РЕДКОСТЬ: Не чаще чем раз в 15 сегментов
+            // 3. ШАНС: Всего 3% на сегмент после безопасной зоны
+            if (track.length > 20 && (track.length - lastPotholeIndex) > 15 && Math.random() < 0.03) {
+                lastPotholeIndex = track.length;
+                const trackW = BASE_TRACK_WIDTH * SCALE;
+                // Случайное место по ширине дороги (от -35% до +35% от центра)
+                const offset = (Math.random() - 0.5) * (trackW * 0.7);
+                
+                const perpX = Math.cos(currentTrackAngle) * offset;
+                const perpY = Math.sin(currentTrackAngle) * offset;
+                
+                potholes.push({
+                    x: newX + perpX,
+                    y: newY + perpY,
+                    size: 15 * SCALE,
+                    active: true
+                });
             }
 
+            // Декорации (лес)
             if (Math.random() < 0.5) {
                 const side = Math.random() > 0.5 ? 1 : -1;
                 const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE) + Math.random() * (350 * SCALE);
@@ -279,25 +289,24 @@
                 });
             }
 
+            // Очистка старых данных (оптимизация памяти)
             if (track.length > 400) {
                 track.splice(0, 80);
                 let w = 0;
                 const maxD = (600 * SCALE) ** 2;
                 
-                // Очистка декораций
                 for (let i = 0; i < decorations.length; i++) {
                     const dx = decorations[i].x - car.x, dy = decorations[i].y - car.y;
                     if (dx * dx + dy * dy < maxD) decorations[w++] = decorations[i];
                 }
                 decorations.length = w;
 
-                // Очистка препятствий
                 w = 0;
-                for (let i = 0; i < obstacles.length; i++) {
-                    const dx = obstacles[i].x - car.x, dy = obstacles[i].y - car.y;
-                    if (dx * dx + dy * dy < maxD) obstacles[w++] = obstacles[i];
+                for (let i = 0; i < potholes.length; i++) {
+                    const dx = potholes[i].x - car.x, dy = potholes[i].y - car.y;
+                    if (dx * dx + dy * dy < maxD) potholes[w++] = potholes[i];
                 }
-                obstacles.length = w;
+                potholes.length = w;
             }
         }
 
@@ -337,26 +346,46 @@
                 gameOver(); return;
             }
 
-            // Проверка столкновений с препятствиями
-            for (let i = 0; i < obstacles.length; i++) {
-                const obs = obstacles[i];
-                if (!obs.active) continue;
-                const dist = Math.hypot(car.x - obs.x, car.y - obs.y);
-                if (dist < (obs.size + 10 * SCALE)) { // 10 * SCALE - радиус машины
-                    gameOver(); return;
+            // Проверка столкновений с ЯМАМИ
+            for (let i = 0; i < potholes.length; i++) {
+                const p = potholes[i];
+                if (!p.active) continue;
+                const dist = Math.hypot(car.x - p.x, car.y - p.y);
+                if (dist < (p.size + 8 * SCALE)) {
+                    // ПОПАДАНИЕ В ЯМУ!
+                    p.active = false; // Деактивируем, чтобы не срабатывало много раз
+                    
+                    // 1. Резкий рывок угла в случайную сторону (занос)
+                    const skidDir = Math.random() > 0.5 ? 1 : -1;
+                    car.angle += skidDir * 0.35; 
+                    
+                    // 2. Включаем таймер заноса (машина становится "ватной")
+                    car.skidTime = 35; 
+                    
+                    // 3. Небольшая потеря скорости и тряска
+                    car.currentSpeed *= 0.92;
+                    shake = 4 * SCALE;
+                    vibrate('heavy');
                 }
             }
 
+            // Управление и физика
             if (input.left) car.angle -= 0.06 * dt;
             if (input.right) car.angle += 0.06 * dt;
             car.angle = Math.max(-1.4, Math.min(1.4, car.angle));
 
             const tVx = Math.sin(car.angle) * car.currentSpeed;
             const tVy = -Math.cos(car.angle) * car.currentSpeed;
-            const lag = 0.07 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
             
-            car.vx += (tVx - car.vx) * lag * dt;
-            car.vy += (tVy - car.vy) * lag * dt;
+            // Если машина в заносе, сцепление с дорогой падает (lag становится очень маленьким)
+            let currentLag = 0.07 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
+            if (car.skidTime > 0) {
+                car.skidTime -= dt;
+                currentLag = 0.015; // Сильное скольжение, машина плохо слушается руля
+            }
+            
+            car.vx += (tVx - car.vx) * currentLag * dt;
+            car.vy += (tVy - car.vy) * currentLag * dt;
             car.x += car.vx * dt;
             car.y += car.vy * dt;
             car.currentSpeed += ((car.baseSpeed * SCALE) - car.currentSpeed) * 0.06 * dt;
@@ -365,7 +394,8 @@
             if (drift > Math.PI) drift = Math.PI * 2 - drift;
             car.driftFactor = drift;
 
-            if (drift > 0.15) {
+            // Начисление очков за дрифт
+            if (drift > 0.15 && car.skidTime <= 0) { // Не даем очки во время принудительного заноса от ямы
                 score += Math.floor(drift * 15 * dt);
                 const c = Math.cos(car.angle), s = Math.sin(car.angle);
                 const off = 16 * SCALE;
@@ -379,6 +409,7 @@
 
             document.getElementById('score').innerText = Math.floor(score).toLocaleString();
 
+            // Обновление частиц
             for (let i = 0; i < MAX_PARTICLES; i++) {
                 const p = particles[i];
                 if (!p.active) continue;
@@ -426,11 +457,11 @@
                 }
             }
 
-            // Препятствия
-            for (let i = 0; i < obstacles.length; i++) {
-                const obs = obstacles[i];
-                if ((obs.x - car.x)**2 + (obs.y - car.y)**2 < viewD) {
-                    drawObstacle(ctx, obs.x, obs.y, obs.size);
+            // Ямы
+            for (let i = 0; i < potholes.length; i++) {
+                const p = potholes[i];
+                if ((p.x - car.x)**2 + (p.y - car.y)**2 < viewD) {
+                    drawPothole(ctx, p.x, p.y, p.size);
                 }
             }
 
@@ -460,19 +491,43 @@
                 ctx.fillRect(cw/2 - 8*SCALE, ch/2 - 3*SCALE, 6*SCALE, 3*SCALE);
                 ctx.restore();
 
+                // === МЯГКИЙ, РЕАЛИСТИЧНЫЙ СВЕТ ФАР ===
                 ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
                 ctx.globalCompositeOperation = 'screen';
-                ctx.fillStyle = 'rgba(100, 140, 180, 0.15)';
+                
+                const beamLen = 180 * SCALE;
+                const beamWidthNear = 10 * SCALE;
+                const beamWidthFar = 65 * SCALE;
+
+                // Основной мягкий луч
+                const grad = ctx.createLinearGradient(0, -ch/2, 0, -ch/2 - beamLen);
+                grad.addColorStop(0, 'rgba(220, 240, 255, 0.35)');
+                grad.addColorStop(0.4, 'rgba(150, 190, 230, 0.12)');
+                grad.addColorStop(1, 'rgba(100, 140, 180, 0)');
+
+                ctx.fillStyle = grad;
                 ctx.beginPath();
-                ctx.moveTo(-cw/2 + 3*SCALE, -ch/2);
-                ctx.lineTo(-cw - 10*SCALE, -ch/2 - 120*SCALE);
-                ctx.lineTo(cw + 10*SCALE, -ch/2 - 120*SCALE);
-                ctx.lineTo(cw/2 - 3*SCALE, -ch/2);
-                ctx.fill(); ctx.restore();
+                ctx.moveTo(-beamWidthNear, -ch/2);
+                ctx.lineTo(-beamWidthFar, -ch/2 - beamLen);
+                ctx.lineTo(beamWidthFar, -ch/2 - beamLen);
+                ctx.lineTo(beamWidthNear, -ch/2);
+                ctx.closePath();
+                ctx.fill();
+
+                // Яркий "хотспот" прямо перед капотом для реалистичности
+                const hotGrad = ctx.createRadialGradient(0, -ch/2, 2*SCALE, 0, -ch/2 - 25*SCALE, 45*SCALE);
+                hotGrad.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+                hotGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = hotGrad;
+                ctx.beginPath();
+                ctx.arc(0, -ch/2, 45*SCALE, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.restore();
             }
             ctx.restore();
 
-            // Туман
+            // Туман (Виньетка)
             const fogR = 450 * SCALE;
             const fg = ctx.createRadialGradient(width/2, height*0.7, 60*SCALE, width/2, height*0.7, fogR);
             fg.addColorStop(0, 'rgba(5, 5, 16, 0)');
@@ -533,21 +588,16 @@
             vibrate('light');
         }
 
-        // UI Привязки
         document.getElementById('btnPlay').addEventListener('click', startGame);
         document.getElementById('btnProfile').addEventListener('click', showProfile);
         document.getElementById('btnBackToMenu').addEventListener('click', backToMenu);
         document.getElementById('btnToMenu').addEventListener('click', (e) => {
-            e.stopPropagation(); // Чтобы не сработал тап по всему экрану
+            e.stopPropagation();
             backToMenu();
         });
 
-        // ТАП В ЛЮБОЕ МЕСТО НА ЭКРАНЕ GAME OVER ДЛЯ РЕСТАРТА
         document.getElementById('gameoverScreen').addEventListener('click', (e) => {
-            // Если нажали на кнопку "В МЕНЮ", это обработается отдельно выше
-            if (e.target.id !== 'btnToMenu') {
-                startGame();
-            }
+            if (e.target.id !== 'btnToMenu') startGame();
         });
 
         document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
