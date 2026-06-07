@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Drift: Track Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            background: #0a0a14;
+            color: #e0e0ff;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .ui-layer {
+            position: absolute;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+        }
+
+        .top-ui {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .score-box {
+            text-align: left;
+            text-shadow: 0 0 8px rgba(100, 140, 200, 0.5);
+        }
+
+        .score-label {
+            font-size: 12px;
+            color: #8a6bb0;
+            letter-spacing: 2px;
+        }
+
+        .score-value {
+            font-size: 36px;
+            font-weight: 900;
+            color: #6b9eb0;
+        }
+
+        .combo-box {
+            text-align: right;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.1s;
+        }
+
+        .combo-box.active {
+            opacity: 1;
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        .combo-label {
+            font-size: 14px;
+            color: #8a6bb0;
+            letter-spacing: 2px;
+        }
+
+        .combo-value {
+            font-size: 32px;
+            font-weight: 900;
+            color: #f0f0ff;
+            text-shadow: 0 0 10px rgba(138, 107, 176, 0.7);
+        }
+
+        .center-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: auto;
+            cursor: pointer;
+            background: rgba(10, 10, 20, 0.9);
+            padding: 40px;
+            border: 2px solid #5b7a9a;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(91, 122, 154, 0.3);
+        }
+
+        .title {
+            font-size: 42px;
+            font-weight: 900;
+            background: linear-gradient(to bottom, #6b9eb0, #8a6bb0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+            letter-spacing: 3px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #8899aa;
+            letter-spacing: 2px;
+            animation: blink 1.5s infinite;
+        }
+
+        .gameover-title {
+            font-size: 36px;
+            font-weight: 900;
+            color: #c87890;
+            text-shadow: 0 0 15px rgba(200, 120, 144, 0.6);
+            margin-bottom: 10px;
+        }
+
+        .final-score {
+            font-size: 24px;
+            color: #bbccdd;
+            margin-bottom: 20px;
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            color: rgba(200, 210, 230, 0.4);
+            letter-spacing: 2px;
+            pointer-events: none;
+        }
+
+        .touch-zones {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            display: flex;
+        }
+
+        .touch-left,
+        .touch-right {
+            flex: 1;
+        }
+
+        .touch-left.active {
+            background: rgba(100, 140, 180, 0.05);
+        }
+        .touch-right.active {
+            background: rgba(138, 107, 176, 0.05);
+        }
+
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+
+        @keyframes blink {
+            0%,
+            100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="touch-zones" id="touchZones">
+        <div class="touch-left" id="btnLeft"></div>
+        <div class="touch-right" id="btnRight"></div>
+    </div>
+
+    <div class="ui-layer">
+        <div class="top-ui">
+            <div class="score-box">
+                <div class="score-label">СЧЕТ ДРИФТА</div>
+                <div class="score-value" id="score">0</div>
+            </div>
+            <div class="combo-box" id="comboBox">
+                <div class="combo-label">COMBO</div>
+                <div class="combo-value" id="combo">x1.0</div>
+            </div>
+        </div>
+
+        <div class="center-ui" id="startScreen">
+            <div class="title">NEON<br>DRIFT</div>
+            <div class="subtitle">НАЖМИ ЧТОБЫ НАЧАТЬ</div>
+        </div>
+
+        <div class="center-ui hidden" id="gameoverScreen">
+            <div class="gameover-title">ВЫЛЕТ С ТРАССЫ</div>
+            <div class="final-score" id="finalScore">0</div>
+            <div class="subtitle">НАЖМИ ЧТОБЫ НАЧАТЬ ЗАНОВО</div>
+        </div>
+
+        <div class="controls-hint" id="hint">
+            УДЕРЖИВАЙ ЛЕВУЮ / ПРАВУЮ СТОРОНУ, ЧТОБЫ ДРИФТОВАТЬ
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let gameState = 'menu';
+        let score = 0;
+        let combo = 1.0;
+        let comboTimer = 0;
+        let frame = 0;
+        let shake = 0;
+
+        let track = [];
+        const TRACK_WIDTH = 180;
+        const SEGMENT_LENGTH = 40;
+        let trackProgress = 0;
+        let targetAngle = 0;
+        let currentTrackAngle = 0;
+
+        function initTrack() {
+            track = [];
+            trackProgress = 0;
+            currentTrackAngle = 0;
+            targetAngle = 0;
+            for (let i = 0; i < 100; i++) {
+                addTrackSegment();
+            }
+        }
+
+        function addTrackSegment() {
+            const lastPt = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
+            trackProgress++;
+
+            if (trackProgress > 45 + Math.floor(Math.random() * 50)) {
+                targetAngle = (Math.random() - 0.5) * 2.4;
+                trackProgress = 0;
+            }
+
+            currentTrackAngle += (targetAngle - currentTrackAngle) * 0.08;
+
+            const newX = lastPt.x + Math.sin(currentTrackAngle) * SEGMENT_LENGTH;
+            const newY = lastPt.y - Math.cos(currentTrackAngle) * SEGMENT_LENGTH;
+
+            track.push({
+                x: newX,
+                y: newY,
+                angle: currentTrackAngle
+            });
+
+            if (track.length > 500) {
+                track.shift();
+            }
+        }
+
+        const car = {
+            x: 0,
+            y: 0,
+            width: 22,
+            height: 40,
+            angle: 0,
+            vx: 0,
+            vy: 0,
+            baseSpeed: 6.5,
+            currentSpeed: 6.5,
+            driftFactor: 0
+        };
+
+        let input = { left: false, right: false };
+        let particles = [];
+        const MAX_PARTICLES = 200;
+
+        const scoreEl = document.getElementById('score');
+        const comboEl = document.getElementById('combo');
+        const comboBox = document.getElementById('comboBox');
+        const startScreen = document.getElementById('startScreen');
+        const gameoverScreen = document.getElementById('gameoverScreen');
+        const finalScoreEl = document.getElementById('finalScore');
+        const hint = document.getElementById('hint');
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+
+        const handleStart = (side) => {
+            if (gameState === 'menu' || gameState === 'gameover') {
+                startGame();
+                return;
+            }
+            if (gameState !== 'playing') return;
+            input[side] = true;
+            if (side === 'left') btnLeft.classList.add('active');
+            if (side === 'right') btnRight.classList.add('active');
+        };
+
+        const handleEnd = (side) => {
+            input[side] = false;
+            if (side === 'left') btnLeft.classList.remove('active');
+            if (side === 'right') btnRight.classList.remove('active');
+        };
+
+        btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart('left'); });
+        btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleEnd('left'); });
+        btnLeft.addEventListener('mousedown', () => handleStart('left'));
+        btnLeft.addEventListener('mouseup', () => handleEnd('left'));
+        btnLeft.addEventListener('mouseleave', () => handleEnd('left'));
+
+        btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart('right'); });
+        btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleEnd('right'); });
+        btnRight.addEventListener('mousedown', () => handleStart('right'));
+        btnRight.addEventListener('mouseup', () => handleEnd('right'));
+        btnRight.addEventListener('mouseleave', () => handleEnd('right'));
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') handleStart('left');
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleStart('right');
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') handleEnd('left');
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleEnd('right');
+        });
+
+        function startGame() {
+            gameState = 'playing';
+            score = 0;
+            combo = 1.0;
+            comboTimer = 0;
+            shake = 0;
+            particles = [];
+            input.left = false;
+            input.right = false;
+            btnLeft.classList.remove('active');
+            btnRight.classList.remove('active');
+
+            initTrack();
+
+            car.x = track[20].x;
+            car.y = track[20].y;
+            car.angle = track[20].angle;
+            car.vx = Math.sin(car.angle) * car.baseSpeed;
+            car.vy = -Math.cos(car.angle) * car.baseSpeed;
+            car.currentSpeed = car.baseSpeed;
+
+            startScreen.classList.add('hidden');
+            gameoverScreen.classList.add('hidden');
+            hint.classList.remove('hidden');
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+            finalScoreEl.innerText = 'СЧЕТ: ' + Math.floor(score).toLocaleString();
+            gameoverScreen.classList.remove('hidden');
+            hint.classList.add('hidden');
+            car.currentSpeed = 0;
+            car.vx = 0;
+            car.vy = 0;
+            particles = [];
+        }
+
+        function spawnSmoke(x, y, angle, speedMultiplier) {
+            if (particles.length >= MAX_PARTICLES) return;
+            const spread = (Math.random() - 0.5) * 0.8;
+            const speed = (Math.random() * 2 + 1) * speedMultiplier;
+            particles.push({
+                x: x,
+                y: y,
+                vx: Math.sin(angle + spread) * speed + car.vx * 0.3,
+                vy: Math.cos(angle + spread) * speed + car.vy * 0.3,
+                life: 1.0,
+                decay: 0.02 + Math.random() * 0.03,
+                size: Math.random() * 8 + 4,
+                color: `rgba(150, 180, 210,`
+            });
+        }
+
+        // Вычисление прозрачности сегмента трассы
+        function getSegmentAlpha(p1, p2) {
+            const mx = (p1.x + p2.x) / 2;
+            const my = (p1.y + p2.y) / 2;
+            const dx = mx - car.x;
+            const dy = my - car.y;
+            
+            // Направление движения машины
+            const fwdX = Math.sin(car.angle);
+            const fwdY = -Math.cos(car.angle);
+            
+            // Проекция на направление движения (вперёд/назад)
+            const forward = dx * fwdX + dy * fwdY;
+            
+            let alpha = 1.0;
+            const fadeAhead = 450;  // расстояние плавного появления впереди
+            const fadeBehind = 350; // расстояние плавного исчезновения сзади
+            
+            if (forward < 0) {
+                // Сзади машины — плавное затухание
+                const dist = -forward;
+                if (dist > fadeBehind) alpha = 0;
+                else {
+                    const t = 1 - (dist / fadeBehind);
+                    alpha = t * t; // ease-in для мягкого растворения
+                }
+            } else {
+                // Впереди машины — плавное проявление
+                const dist = forward;
+                if (dist < fadeAhead) {
+                    const t = dist / fadeAhead;
+                    alpha = 1 - (1 - t) * (1 - t); // ease-out для плавного появления
+                }
+            }
+            return alpha;
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+            frame++;
+
+            const lastTrackPoint = track[track.length - 1];
+            const dxEnd = car.x - lastTrackPoint.x;
+            const dyEnd = car.y - lastTrackPoint.y;
+            const distToEnd = Math.sqrt(dxEnd * dxEnd + dyEnd * dyEnd);
+
+            let addedThisFrame = 0;
+            while (distToEnd < 400 && addedThisFrame < 10) {
+                addTrackSegment();
+                addedThisFrame++;
+                const newLast = track[track.length - 1];
+                const dx = car.x - newLast.x;
+                const dy = car.y - newLast.y;
+                const newDist = Math.sqrt(dx * dx + dy * dy);
+                if (newDist >= 400) break;
+            }
+
+            let minDist = Infinity;
+            for (let i = 0; i < track.length; i++) {
+                const dx = car.x - track[i].x;
+                const dy = car.y - track[i].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < minDist) {
+                    minDist = dist;
+                }
+            }
+
+            const onTrack = minDist < (TRACK_WIDTH / 2);
+            if (!onTrack) {
+                gameOver();
+                return;
+            }
+
+            if (input.left) car.angle -= 0.05;
+            if (input.right) car.angle += 0.05;
+            car.angle = Math.max(-1.5, Math.min(1.5, car.angle));
+
+            const targetVx = Math.sin(car.angle) * car.currentSpeed;
+            const targetVy = -Math.cos(car.angle) * car.currentSpeed;
+            const driftLag = 0.06 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
+            car.vx += (targetVx - car.vx) * driftLag;
+            car.vy += (targetVy - car.vy) * driftLag;
+            car.x += car.vx;
+            car.y += car.vy;
+
+            car.currentSpeed += (car.baseSpeed - car.currentSpeed) * 0.05;
+
+            const velocityAngle = Math.atan2(car.vx, -car.vy);
+            const driftAngle = Math.abs(car.angle - velocityAngle);
+            let normalizedDrift = driftAngle;
+            if (normalizedDrift > Math.PI) normalizedDrift = Math.PI * 2 - normalizedDrift;
+            car.driftFactor = normalizedDrift;
+
+            if (normalizedDrift > 0.15 && onTrack) {
+                comboTimer = 60;
+                combo = Math.min(combo + 0.015, 5.0);
+                score += Math.floor(normalizedDrift * 15 * combo);
+
+                const cos = Math.cos(car.angle);
+                const sin = Math.sin(car.angle);
+                const rearX = car.x - sin * 18;
+                const rearY = car.y + cos * 18;
+                spawnSmoke(rearX - 8, rearY, car.angle, 1.5);
+                spawnSmoke(rearX + 8, rearY, car.angle, 1.5);
+
+                if (combo > 2.5 && Math.random() > 0.8) shake = 2;
+            } else {
+                comboTimer--;
+                if (comboTimer <= 0) combo = 1.0;
+            }
+
+            scoreEl.innerText = Math.floor(score).toLocaleString();
+            if (combo > 1.2) {
+                comboBox.classList.add('active');
+                comboEl.innerText = 'x' + combo.toFixed(1);
+            } else {
+                comboBox.classList.remove('active');
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+                p.size += 0.4;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            if (shake > 0) shake *= 0.9;
+            if (shake < 0.5) shake = 0;
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(10, 10, 20, 0.7)';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.save();
+            const camX = width / 2 - car.x;
+            const camY = (height * 0.75) - car.y;
+            const shakeX = shake > 0 ? (Math.random() - 0.5) * shake : 0;
+            const shakeY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
+            ctx.translate(camX + shakeX, camY + shakeY);
+
+            if (track.length > 1) {
+                // Оптимизация: рисуем только видимые сегменты
+                const viewPadding = 300;
+                const viewLeft = car.x - width / 2 - viewPadding;
+                const viewRight = car.x + width / 2 + viewPadding;
+                const viewTop = car.y - height - viewPadding;
+                const viewBottom = car.y + height * 0.25 + viewPadding;
+
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                let dashOffset = 0;
+                for (let i = 0; i < track.length - 1; i++) {
+                    const p1 = track[i];
+                    const p2 = track[i + 1];
+
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const segLen = Math.sqrt(dx * dx + dy * dy);
+
+                    // Проверка видимости
+                    const minX = Math.min(p1.x, p2.x);
+                    const maxX = Math.max(p1.x, p2.x);
+                    const minY = Math.min(p1.y, p2.y);
+                    const maxY = Math.max(p1.y, p2.y);
+
+                    if (maxX < viewLeft || minX > viewRight || maxY < viewTop || minY > viewBottom) {
+                        dashOffset += segLen;
+                        continue;
+                    }
+
+                    const alpha = getSegmentAlpha(p1, p2);
+                    if (alpha < 0.01) {
+                        dashOffset += segLen;
+                        continue;
+                    }
+
+                    // 1. Внешнее свечение (glow)
+                    ctx.strokeStyle = `rgba(91, 74, 122, ${alpha * 0.4})`;
+                    ctx.lineWidth = TRACK_WIDTH + 24;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+
+                    // 2. Основной край трассы
+                    ctx.strokeStyle = `rgba(106, 91, 138, ${alpha})`;
+                    ctx.lineWidth = TRACK_WIDTH;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+
+                    // 3. Внутреннее покрытие
+                    ctx.strokeStyle = `rgba(28, 28, 46, ${alpha})`;
+                    ctx.lineWidth = TRACK_WIDTH - 8;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+
+                    // 4. Центральная пунктирная разметка
+                    ctx.strokeStyle = `rgba(110, 140, 170, ${alpha * 0.35})`;
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([20, 30]);
+                    ctx.lineDashOffset = -dashOffset;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+
+                    dashOffset += segLen;
+                }
+                ctx.setLineDash([]);
+            }
+
+            // Частицы дыма
+            particles.forEach(p => {
+                // Для частиц тоже учитываем их положение для плавности
+                const dx = p.x - car.x;
+                const dy = p.y - car.y;
+                const fwdX = Math.sin(car.angle);
+                const fwdY = -Math.cos(car.angle);
+                const forward = dx * fwdX + dy * fwdY;
+                
+                let particleAlpha = 1.0;
+                if (forward < -200) {
+                    particleAlpha = Math.max(0, 1 - (-forward - 200) / 300);
+                }
+                
+                ctx.fillStyle = p.color + (p.life * 0.35 * particleAlpha) + ')';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            if (gameState === 'playing' || gameState === 'gameover') {
+                ctx.save();
+                ctx.translate(car.x, car.y);
+                ctx.rotate(car.angle);
+
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = '#5b8a9f';
+                ctx.fillStyle = '#0e0e1a';
+                ctx.strokeStyle = '#5b8a9f';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(-car.width / 2, -car.height / 2, car.width, car.height, 5);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#5b8a9f';
+                ctx.globalAlpha = 0.4;
+                ctx.fillRect(-car.width / 2 + 3, -car.height / 2 + 8, car.width - 6, 10);
+                ctx.globalAlpha = 1.0;
+
+                ctx.fillStyle = '#d0e8ff';
+                ctx.shadowColor = '#d0e8ff';
+                ctx.shadowBlur = 14;
+                ctx.fillRect(-car.width / 2 + 2, -car.height / 2, 5, 3);
+                ctx.fillRect(car.width / 2 - 7, -car.height / 2, 5, 3);
+
+                const brakeIntensity = car.driftFactor > 0.2 ? 1.0 : 0.4;
+                ctx.fillStyle = `rgba(200, 60, 80, ${brakeIntensity})`;
+                ctx.shadowColor = '#c83250';
+                ctx.shadowBlur = 10 * brakeIntensity;
+                ctx.fillRect(-car.width / 2 + 2, car.height / 2 - 3, 7, 3);
+                ctx.fillRect(car.width / 2 - 9, car.height / 2 - 3, 7, 3);
+
+                ctx.restore();
+
+                ctx.save();
+                ctx.translate(car.x, car.y);
+                ctx.rotate(car.angle);
+                ctx.globalCompositeOperation = 'screen';
+                const beamGrad = ctx.createLinearGradient(0, -car.height / 2, 0, -car.height / 2 - 160);
+                beamGrad.addColorStop(0, 'rgba(100, 140, 180, 0.2)');
+                beamGrad.addColorStop(1, 'rgba(100, 140, 180, 0)');
+                ctx.fillStyle = beamGrad;
+                ctx.beginPath();
+                ctx.moveTo(-car.width / 2 + 4, -car.height / 2);
+                ctx.lineTo(-car.width - 15, -car.height / 2 - 160);
+                ctx.lineTo(car.width + 15, -car.height / 2 - 160);
+                ctx.lineTo(car.width / 2 - 4, -car.height / 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            ctx.restore();
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        initTrack();
+        loop();
+
+        document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+        document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+    </script>
+</body>
+</html>
