@@ -191,8 +191,6 @@
         const BASE_TRACK_WIDTH = 160, BASE_SEGMENT_LENGTH = 35;
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
         let segmentsSincePothole = 0; 
-        
-        // ИСПРАВЛЕНИЕ: Счетчик сегментов с последней развилки (не зависит от длины массива!)
         let segmentsSinceLastFork = 0;
         let forkSwitched = false;
 
@@ -245,7 +243,7 @@
             track = []; forkBranch = []; decorations = []; potholes = []; 
             trackProgress = 0; currentTrackAngle = 0; targetAngle = 0;
             segmentsSincePothole = 0;
-            segmentsSinceLastFork = 0; // Сброс счетчика развилок
+            segmentsSinceLastFork = 0;
             forkSwitched = false;
             
             for (let i = 0; i < 100; i++) addTrackSegment();
@@ -261,7 +259,7 @@
         function addTrackSegment() {
             const last = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
             trackProgress++;
-            segmentsSinceLastFork++; // Увеличиваем счетчик для развилки
+            segmentsSinceLastFork++;
             
             if (trackProgress > 30 + Math.floor(Math.random() * 35)) {
                 targetAngle = (Math.random() - 0.5) * 3.2;
@@ -271,9 +269,11 @@
             
             const segLen = BASE_SEGMENT_LENGTH * SCALE;
             const newX = last.x + Math.sin(currentTrackAngle) * segLen;
-            const newY = last.y - Math.cos(currentTrackAngle) * segLentrack.push({ x: newX, y: newY, angle: currentTrackAngle });
+            const newY = last.y - Math.cos(currentTrackAngle) * segLen;
+            
+            // ИСПРАВЛЕНО: добавлен перенос строки и точка с запятой
+            track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
-            // Генерация ям
             segmentsSincePothole++;
             if (track.length > 25 && segmentsSincePothole > 12 && Math.random() < 0.04) {
                 segmentsSincePothole = 0;
@@ -284,13 +284,11 @@
                 potholes.push({ x: newX + perpX, y: newY + perpY, size: 15 * SCALE, active: true });
             }
 
-            // ИСПРАВЛЕНИЕ: Проверка, не попадает ли дерево на ветку развилки
             let canSpawnTree = true;
             if (forkBranch.length > 0) {
                 const treeX = newX + Math.cos(currentTrackAngle) * ((BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE));
                 const treeY = newY + Math.sin(currentTrackAngle) * ((BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE));
                 
-                // Проверяем расстояние до каждого сегмента ветки
                 for (let i = 0; i < forkBranch.length; i++) {
                     const d = Math.hypot(treeX - forkBranch[i].x, treeY - forkBranch[i].y);
                     if (d < (BASE_TRACK_WIDTH * SCALE / 2) + (20 * SCALE)) {
@@ -300,7 +298,6 @@
                 }
             }
 
-            // Генерация леса (если место свободно)
             if (canSpawnTree && Math.random() < 0.5) {
                 const side = Math.random() > 0.5 ? 1 : -1;
                 const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE) + Math.random() * (350 * SCALE);
@@ -313,9 +310,8 @@
                 });
             }
 
-            // ИСПРАВЛЕНИЕ: Логика развилки по счетчику, а не по длине массива
             if (segmentsSinceLastFork > 180 && forkBranch.length === 0) {
-                segmentsSinceLastFork = 0; // Сбрасываем, чтобы следующая была не скоро
+                segmentsSinceLastFork = 0;
                 forkSwitched = false;
                 const dir = Math.random() > 0.5 ? 1 : -1;
                 const branchAngle = currentTrackAngle + (dir * 0.6); 
@@ -333,7 +329,6 @@
                 }
             }
 
-            // Очистка старых данных
             if (track.length > 400) {
                 track.splice(0, 80);
                 
@@ -382,7 +377,6 @@
                 addTrackSegment();
             }
 
-            // Проверка переключения на ветку
             if (forkBranch.length > 0 && !forkSwitched) {
                 const midBranch = forkBranch[Math.floor(forkBranch.length / 2)];
                 const distToBranch = Math.hypot(car.x - midBranch.x, car.y - midBranch.y);
@@ -396,7 +390,6 @@
                 }
             }
 
-            // Проверка столкновений с дорогой
             let minDist = Infinity;
             const checkArrays = [track];
             if (forkBranch.length > 0) checkArrays.push(forkBranch);
@@ -413,7 +406,6 @@
                 gameOver(); return;
             }
 
-            // Ямы
             for (let i = 0; i < potholes.length; i++) {
                 const p = potholes[i];
                 if (!p.active) continue;
@@ -429,7 +421,6 @@
                 }
             }
 
-            // Управление
             if (input.left) car.angle -= 0.065 * dt;
             if (input.right) car.angle += 0.065 * dt;
 
@@ -512,19 +503,15 @@
                 ctx.setLineDash([15 * SCALE, 25 * SCALE]); ctx.stroke(); ctx.setLineDash([]);
             };
 
-            // Рисуем основную дорогу
             drawPath(track, false);
             
-            // ИСПРАВЛЕНИЕ: Сглаживание стыка развилки
             if (forkBranch.length > 0) {
                 const splitPoint = forkBranch[0];
-                // Рисуем "заплатку" в точке разветвления, чтобы скрыть наложение линий
                 ctx.fillStyle = '#6a5b8a';
                 ctx.beginPath();
                 ctx.arc(splitPoint.x, splitPoint.y, (tw / 2) + 4, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Рисуем внутреннюю часть дороги поверх заплатки для идеального стыка
                 ctx.fillStyle = '#1c1c2e';
                 ctx.beginPath();
                 ctx.arc(splitPoint.x, splitPoint.y, (tw / 2) - 2, 0, Math.PI * 2);
@@ -533,7 +520,6 @@
                 drawPath(forkBranch, true);
             }
 
-            // Неоновый маркер развилки
             if (forkBranch.length > 0 && !forkSwitched) {
                 const marker = forkBranch[2];
                 ctx.fillStyle = 'rgba(200, 120, 144, 0.9)';
