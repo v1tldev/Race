@@ -192,8 +192,8 @@
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
         let segmentsSincePothole = 0; 
         
-        // Логика развилок
-        let nextForkIndex = 150; // Генерируем развилку, когда трасса достигнет этого кол-ва сегментов
+        // ИСПРАВЛЕНИЕ: Счетчик сегментов с последней развилки (не зависит от длины массива!)
+        let segmentsSinceLastFork = 0;
         let forkSwitched = false;
 
         const MAX_PARTICLES = 150;
@@ -245,7 +245,7 @@
             track = []; forkBranch = []; decorations = []; potholes = []; 
             trackProgress = 0; currentTrackAngle = 0; targetAngle = 0;
             segmentsSincePothole = 0;
-            nextForkIndex = 150;
+            segmentsSinceLastFork = 0; // Сброс счетчика развилок
             forkSwitched = false;
             
             for (let i = 0; i < 100; i++) addTrackSegment();
@@ -261,6 +261,7 @@
         function addTrackSegment() {
             const last = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
             trackProgress++;
+            segmentsSinceLastFork++; // Увеличиваем счетчик для развилки
             
             if (trackProgress > 30 + Math.floor(Math.random() * 35)) {
                 targetAngle = (Math.random() - 0.5) * 3.2;
@@ -270,8 +271,7 @@
             
             const segLen = BASE_SEGMENT_LENGTH * SCALE;
             const newX = last.x + Math.sin(currentTrackAngle) * segLen;
-            const newY = last.y - Math.cos(currentTrackAngle) * segLen;
-            track.push({ x: newX, y: newY, angle: currentTrackAngle });
+            const newY = last.y - Math.cos(currentTrackAngle) * segLentrack.push({ x: newX, y: newY, angle: currentTrackAngle });
 
             // Генерация ям
             segmentsSincePothole++;
@@ -284,8 +284,24 @@
                 potholes.push({ x: newX + perpX, y: newY + perpY, size: 15 * SCALE, active: true });
             }
 
-            // Генерация леса
-            if (Math.random() < 0.5) {
+            // ИСПРАВЛЕНИЕ: Проверка, не попадает ли дерево на ветку развилки
+            let canSpawnTree = true;
+            if (forkBranch.length > 0) {
+                const treeX = newX + Math.cos(currentTrackAngle) * ((BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE));
+                const treeY = newY + Math.sin(currentTrackAngle) * ((BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE));
+                
+                // Проверяем расстояние до каждого сегмента ветки
+                for (let i = 0; i < forkBranch.length; i++) {
+                    const d = Math.hypot(treeX - forkBranch[i].x, treeY - forkBranch[i].y);
+                    if (d < (BASE_TRACK_WIDTH * SCALE / 2) + (20 * SCALE)) {
+                        canSpawnTree = false;
+                        break;
+                    }
+                }
+            }
+
+            // Генерация леса (если место свободно)
+            if (canSpawnTree && Math.random() < 0.5) {
                 const side = Math.random() > 0.5 ? 1 : -1;
                 const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE) + Math.random() * (350 * SCALE);
                 decorations.push({
@@ -297,38 +313,29 @@
                 });
             }
 
-            // ЛОГИКА РАЗВИЛКИ (ПЛАВНАЯ И КРАСИВАЯ)
-            if (track.length >= nextForkIndex && forkBranch.length === 0) {
+            // ИСПРАВЛЕНИЕ: Логика развилки по счетчику, а не по длине массива
+            if (segmentsSinceLastFork > 180 && forkBranch.length === 0) {
+                segmentsSinceLastFork = 0; // Сбрасываем, чтобы следующая была не скоро
                 forkSwitched = false;
                 const dir = Math.random() > 0.5 ? 1 : -1;
-                // Плавный угол отхождения (~35 градусов)
                 const branchAngle = currentTrackAngle + (dir * 0.6); 
                 
                 let bx = newX;
                 let by = newY;
                 let bAngle = branchAngle;
                 
-                // Сразу генерируем 60 сегментов ветки, чтобы она уже была на экране
                 forkBranch = [{ x: bx, y: by, angle: bAngle }];
                 for (let i = 0; i < 60; i++) {
-                    // Небольшие плавные изгибы, как на настоящей дороге
                     bAngle += (Math.random() - 0.5) * 0.25; 
                     bx += Math.sin(bAngle) * segLen;
                     by -= Math.cos(bAngle) * segLen;
                     forkBranch.push({ x: bx, y: by, angle: bAngle });
                 }
-                
-                // Следующая развилка будет не скоро
-                nextForkIndex = track.length + 250; 
             }
 
             // Очистка старых данных
             if (track.length > 400) {
                 track.splice(0, 80);
-                if (forkBranch.length > 0 && forkSwitched) {
-                    // Если мы уже на ветке, чистим и её, но аккуратно
-                    // (на практике forkBranch становится track, так что это сработает для нового track)
-                }
                 
                 let w = 0;
                 const maxD = (650 * SCALE) ** 2;
@@ -375,17 +382,15 @@
                 addTrackSegment();
             }
 
-            // ПРОВЕРКА ПЕРЕКЛЮЧЕНИЯ НА ВЕТКУ
+            // Проверка переключения на ветку
             if (forkBranch.length > 0 && !forkSwitched) {
-                // Проверяем, подъехал ли игрок к середине ветки
                 const midBranch = forkBranch[Math.floor(forkBranch.length / 2)];
                 const distToBranch = Math.hypot(car.x - midBranch.x, car.y - midBranch.y);
                 
                 if (distToBranch < 100 * SCALE) {
-                    // Игрок выбрал ветку! Делаем её основной дорогой
                     track = forkBranch;
                     currentTrackAngle = forkBranch[forkBranch.length - 1].angle;
-                    forkBranch = []; // Очищаем, теперь это часть main track
+                    forkBranch = []; 
                     forkSwitched = true;
                     vibrate('medium');
                 }
@@ -424,7 +429,7 @@
                 }
             }
 
-            // Управление (полная свобода 360 градусов)
+            // Управление
             if (input.left) car.angle -= 0.065 * dt;
             if (input.right) car.angle += 0.065 * dt;
 
@@ -490,7 +495,6 @@
             const drawPath = (pathArr, isFork) => {
                 if (pathArr.length < 2) return;
                 const startIdx = Math.max(0, pathArr.length - 120);
-                // Ветка чуть тусклее, чтобы обозначить выбор, но всё еще видна
                 const alpha = isFork ? 0.4 : 0.5;
                 const color = isFork ? '#5a4b6a' : '#6a5b8a';
 
@@ -508,12 +512,30 @@
                 ctx.setLineDash([15 * SCALE, 25 * SCALE]); ctx.stroke(); ctx.setLineDash([]);
             };
 
+            // Рисуем основную дорогу
             drawPath(track, false);
-            if (forkBranch.length > 0) drawPath(forkBranch, true);
+            
+            // ИСПРАВЛЕНИЕ: Сглаживание стыка развилки
+            if (forkBranch.length > 0) {
+                const splitPoint = forkBranch[0];
+                // Рисуем "заплатку" в точке разветвления, чтобы скрыть наложение линий
+                ctx.fillStyle = '#6a5b8a';
+                ctx.beginPath();
+                ctx.arc(splitPoint.x, splitPoint.y, (tw / 2) + 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Рисуем внутреннюю часть дороги поверх заплатки для идеального стыка
+                ctx.fillStyle = '#1c1c2e';
+                ctx.beginPath();
+                ctx.arc(splitPoint.x, splitPoint.y, (tw / 2) - 2, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Неоновый маркер развилки (шеврон)
+                drawPath(forkBranch, true);
+            }
+
+            // Неоновый маркер развилки
             if (forkBranch.length > 0 && !forkSwitched) {
-                const marker = forkBranch[2]; // Точка чуть после начала ветки
+                const marker = forkBranch[2];
                 ctx.fillStyle = 'rgba(200, 120, 144, 0.9)';
                 ctx.shadowBlur = 12 * SCALE;
                 ctx.shadowColor = '#c87890';
