@@ -245,8 +245,40 @@
         let targetAngle = 0;
         let currentTrackAngle = 0;
 
-        // Массив для декораций (деревья)
         let decorations = [];
+
+        // Функция отрисовки детального силуэта елки
+        function drawPineTree(ctx, x, y, size, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = color;
+            
+            // Ствол
+            ctx.fillRect(-size * 0.08, 0, size * 0.16, size * 0.25);
+            
+            // Нижний ярус (самый широкий)
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.7, size * 0.1);
+            ctx.lineTo(size * 0.7, size * 0.1);
+            ctx.lineTo(0, -size * 0.4);
+            ctx.fill();
+            
+            // Средний ярус
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.5, -size * 0.2);
+            ctx.lineTo(size * 0.5, -size * 0.2);
+            ctx.lineTo(0, -size * 0.75);
+            ctx.fill();
+            
+            // Верхний ярус (острый)
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.3, -size * 0.55);
+            ctx.lineTo(size * 0.3, -size * 0.55);
+            ctx.lineTo(0, -size * 1.1);
+            ctx.fill();
+            
+            ctx.restore();
+        }
 
         function initTrack() {
             track = [];
@@ -275,34 +307,32 @@
 
             track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
-            // Генерация декораций (деревьев) вдоль трассы
-            if (Math.random() < 0.4) { // 40% шанс на дерево у каждого сегмента
-                const side = Math.random() > 0.5 ? 1 : -1; // Слева или справа
-                // Расстояние от центра трассы: половина ширины + отступ + случайный разброс
-                const dist = (TRACK_WIDTH / 2) + 40 + Math.random() * 250;
+            // Генерация детальных елок вдоль трассы
+            if (Math.random() < 0.35) { 
+                const side = Math.random() > 0.5 ? 1 : -1; 
+                // Деревья стоят дальше от дороги, создавая ощущение просеки
+                const dist = (TRACK_WIDTH / 2) + 60 + Math.random() * 300;
                 
-                // Перпендикулярный вектор для смещения
                 const perpX = Math.cos(currentTrackAngle) * dist * side;
                 const perpY = Math.sin(currentTrackAngle) * dist * side;
 
+                // Очень тёмный цвет для силуэта, сливающийся с ночью
+                const treeColor = `rgba(${10 + Math.random()*10}, ${10 + Math.random()*10}, ${25 + Math.random()*15}, 0.9)`;
+                
                 decorations.push({
                     x: newX + perpX,
                     y: newY + perpY,
-                    size: 15 + Math.random() * 35,
-                    // Цвета: тёмно-зелёный или тёмно-фиолетовый неон
-                    baseColor: Math.random() > 0.5 ? '#0f3a2a' : '#2a0f3a',
-                    // Иногда дерево ярко светится (неоновый акцент)
-                    glowColor: Math.random() > 0.85 ? (side > 0 ? '#4affaa' : '#aa4aff') : 'transparent',
-                    type: Math.random() > 0.5 ? 'pine' : 'round'
+                    size: 25 + Math.random() * 45, // Разный размер деревьев
+                    color: treeColor,
+                    layer: Math.random() > 0.5 ? 'back' : 'front' // Для эффекта параллакса/глубины
                 });
             }
 
-            if (track.length > 600) {
+            if (track.length > 800) {
                 track.shift();
-                // Удаляем старые декорации, которые остались далеко позади
                 decorations = decorations.filter(d => {
                     const dy = d.y - track[0].y; 
-                    return dy < 1000; // Оставляем только те, что не слишком далеко сзади
+                    return dy < 1200; 
                 });
             }
         }
@@ -409,11 +439,12 @@
             const distToEnd = Math.sqrt((car.x - lastTrackPoint.x)**2 + (car.y - lastTrackPoint.y)**2);
 
             let addedThisFrame = 0;
-            while (distToEnd < 500 && addedThisFrame < 10) { // Увеличил дистанцию генерации
+            // Увеличена дистанция генерации до 1000, чтобы трасса создавалась далеко в тумане
+            while (distToEnd < 1000 && addedThisFrame < 15) { 
                 addTrackSegment();
                 addedThisFrame++;
                 const newLast = track[track.length - 1];
-                if (Math.sqrt((car.x - newLast.x)**2 + (car.y - newLast.y)**2) >= 500) break;
+                if (Math.sqrt((car.x - newLast.x)**2 + (car.y - newLast.y)**2) >= 1000) break;
             }
 
             let minDist = Infinity;
@@ -473,7 +504,6 @@
         }
 
         function draw() {
-            // 1. Фон
             ctx.fillStyle = '#050510';
             ctx.fillRect(0, 0, width, height);
 
@@ -484,36 +514,12 @@
             const shakeY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
             ctx.translate(camX + shakeX, camY + shakeY);
 
-            // 2. Рисуем декорации (Деревья) ПОД трассой
-            decorations.forEach(d => {
-                ctx.save();
-                ctx.translate(d.x, d.y);
-                
-                // Свечение для некоторых деревьев
-                if (d.glowColor !== 'transparent') {
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = d.glowColor;
-                    ctx.fillStyle = d.glowColor;
-                } else {
-                    ctx.shadowBlur = 0;
-                    ctx.fillStyle = d.baseColor;
-                }
-
-                ctx.beginPath();
-                if (d.type === 'pine') {
-                    // Стилизация под неоновую ёлку/треугольник
-                    ctx.moveTo(0, -d.size);
-                    ctx.lineTo(d.size * 0.6, d.size * 0.5);
-                    ctx.lineTo(-d.size * 0.6, d.size * 0.5);
-                } else {
-                    // Стилизация под круглое неоновое дерево
-                    ctx.arc(0, 0, d.size * 0.5, 0, Math.PI * 2);
-                }
-                ctx.fill();
-                ctx.restore();
+            // 1. Рисуем задний план леса (дальние деревья)
+            decorations.filter(d => d.layer === 'back').forEach(d => {
+                drawPineTree(ctx, d.x, d.y, d.size, d.color);
             });
 
-            // 3. Рисуем трассу (она перекрывает низ деревьев, создавая глубину)
+            // 2. Рисуем трассу (перекрывает нижнюю часть дальних деревьев)
             if (track.length > 1) {
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = '#5b4a7a';
@@ -540,6 +546,11 @@
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
+
+            // 3. Рисуем передний план леса (ближние деревья, перекрывают края трассы для глубины)
+            decorations.filter(d => d.layer === 'front').forEach(d => {
+                drawPineTree(ctx, d.x, d.y, d.size, d.color);
+            });
 
             // 4. Частицы и машина
             particles.forEach(p => {
@@ -601,24 +612,30 @@
             }
             ctx.restore();
 
-            // 5. ГЛАВНЫЙ ЭФФЕКТ: Радиальный туман (Виньетка) вокруг машины
-            // Это заменяет конус. Он работает идеально при любых поворотах, 
-            // плавно скрывая края генерации и создавая атмосферу ночи.
+            // 5. ГЛАВНЫЙ ЭФФЕКТ: Туман с фокусом ВПЕРЕДИ от машины
+            // Центр градиента смещён вверх (вперёд по направлению движения), 
+            // что создаёт эффект "света фар в тумане" и полностью скрывает генерацию трассы сверху.
             const screenCarX = width / 2 + shakeX;
             const screenCarY = height * 0.75 + shakeY;
 
-            // Эллиптический градиент (шире по горизонтали, чтобы имитировать перспективу)
             const fogGrad = ctx.createRadialGradient(
-                screenCarX, screenCarY, 100,  // Внутренний радиус (полная видимость)
-                screenCarX, screenCarY, 800   // Внешний радиус (полная темнота)
+                screenCarX, screenCarY - 150, 80,   // Фокус смещён вперёд (вверх по экрану)
+                screenCarX, screenCarY - 150, 1000  // Огромный радиус затухания
             );
-            fogGrad.addColorStop(0, 'rgba(5, 5, 16, 0)');      // Центр прозрачный
-            fogGrad.addColorStop(0.4, 'rgba(5, 5, 16, 0.3)');  // Мягкий переход
-            fogGrad.addColorStop(0.8, 'rgba(5, 5, 16, 0.85)'); // Густой туман
-            fogGrad.addColorStop(1, 'rgba(5, 5, 16, 0.98)');   // Полная темнота по краям
+            fogGrad.addColorStop(0, 'rgba(5, 5, 16, 0)');       // Вокруг машины и чуть впереди чисто
+            fogGrad.addColorStop(0.25, 'rgba(5, 5, 16, 0.3)');  // Мягкая дымка
+            fogGrad.addColorStop(0.55, 'rgba(5, 5, 16, 0.85)'); // Густой туман
+            fogGrad.addColorStop(1, 'rgba(5, 5, 16, 0.98)');    // Полная темнота по краям и вдали
 
             ctx.fillStyle = fogGrad;
             ctx.fillRect(0, 0, width, height);
+            
+            // Дополнительная нижняя виньетка для плавного исчезновения сзади (как вы просили ранее)
+            const backFog = ctx.createLinearGradient(0, height * 0.85, 0, height);
+            backFog.addColorStop(0, 'rgba(5, 5, 16, 0)');
+            backFog.addColorStop(1, 'rgba(5, 5, 16, 0.9)');
+            ctx.fillStyle = backFog;
+            ctx.fillRect(0, height * 0.85, width, height * 0.15);
         }
 
         function loop() {
