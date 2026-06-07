@@ -191,8 +191,6 @@
         const BASE_TRACK_WIDTH = 160, BASE_SEGMENT_LENGTH = 35;
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
         let segmentsSincePothole = 0; 
-        
-        // Исправление: считаем развилки по дистанции, а не по сегментам (чтобы не ломалось при splice)
         let lastForkDistance = 0;
         let forkSwitched = false;
 
@@ -288,44 +286,48 @@
                 });
             }
 
-            // ИСПРАВЛЕНИЕ: Точечная проверка, чтобы деревья не лезли на дорогу, но росли густо
+            // ИСПРАВЛЕНИЕ: Сначала вычисляем позицию дерева, потом проверяем её
+            const side = Math.random() > 0.5 ? 1 : -1;
+            // Деревья растут прямо у обочины (от 10px до 150px от края дороги)
+            const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (10 * SCALE) + Math.random() * (140 * SCALE);
+            const treeX = newX + Math.cos(currentTrackAngle) * dist * side;
+            const treeY = newY + Math.sin(currentTrackAngle) * dist * side;
+
             let canSpawnTree = true;
-            const safeMargin = (BASE_TRACK_WIDTH * SCALE / 2) + (10 * SCALE); // Всего 10px запаса от асфальта
+            const safeMargin = (BASE_TRACK_WIDTH * SCALE / 2) + (5 * SCALE); // Минимальный зазор от асфальта
             
-            // Проверяем основную дорогу (последние 30 сегментов)
-            const checkLimit = Math.max(0, track.length - 30);
+            // Проверяем, не попадает ли дерево на недавние сегменты дороги
+            const checkLimit = Math.max(0, track.length - 40);
             for (let i = checkLimit; i < track.length; i++) {
-                if (Math.hypot(newX - track[i].x, newY - track[i].y) < safeMargin) {
-                    canSpawnTree = false; break;
+                if (Math.hypot(treeX - track[i].x, treeY - track[i].y) < safeMargin) {
+                    canSpawnTree = false;
+                    break;
                 }
             }
             
-            // Проверяем развилку
+            // Проверяем, не попадает ли дерево на развилку
             if (canSpawnTree && forkBranch.length > 0) {
                 for (let i = 0; i < forkBranch.length; i++) {
-                    if (Math.hypot(newX - forkBranch[i].x, newY - forkBranch[i].y) < safeMargin) {
-                        canSpawnTree = false; break;
+                    if (Math.hypot(treeX - forkBranch[i].x, treeY - forkBranch[i].y) < safeMargin) {
+                        canSpawnTree = false;
+                        break;
                     }
                 }
             }
 
-            // Спавним густой лес (оригинальные темные цвета)
-            if (canSpawnTree && Math.random() < 0.65) {
-                const side = Math.random() > 0.5 ? 1 : -1;
-                // Растут прямо у обочины (от 0 до 150px)
-                const dist = (BASE_TRACK_WIDTH * SCALE / 2) + Math.random() * (150 * SCALE);
-                
+            // Спавним густой лес (70% шанс, если место свободно)
+            if (canSpawnTree && Math.random() < 0.7) {
                 decorations.push({
-                    x: newX + Math.cos(currentTrackAngle) * dist * side,
-                    y: newY + Math.sin(currentTrackAngle) * dist * side,
-                    size: (35 + Math.random() * 50) * SCALE,
-                    // Оригинальные мрачные цвета
-                    color: `rgba(${10 + Math.random()*15}, ${10 + Math.random()*15}, ${25 + Math.random()*20}, 0.95)`,
+                    x: treeX,
+                    y: treeY,
+                    size: (35 + Math.random() * 55) * SCALE,
+                    // Чуть более насыщенные темные цвета, чтобы их было видно в тумане
+                    color: `rgba(${20 + Math.random()*20}, ${20 + Math.random()*20}, ${40 + Math.random()*30}, 0.95)`,
                     layer: Math.random() > 0.4 ? 'back' : 'front'
                 });
             }
 
-            // ИСПРАВЛЕНИЕ: Бесконечные развилки по дистанции
+            // Бесконечные развилки по дистанции
             if ((distance - lastForkDistance) > (800 + Math.random() * 400) && forkBranch.length === 0) {
                 lastForkDistance = distance;
                 forkSwitched = false;
