@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Neon Drift: Optimized</title>
+    <title>Neon Drift: Ultra Lite</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -108,7 +108,7 @@
 
     <div class="screen" id="mainMenu">
         <div class="title">NEON<br>DRIFT</div>
-        <div class="subtitle">TMA EDITION</div>
+        <div class="subtitle">ULTRA LITE</div>
         <div class="btn btn-primary" id="btnPlay">ИГРАТЬ</div>
         <div class="btn" id="btnProfile">ПРОФИЛЬ</div>
     </div>
@@ -194,7 +194,6 @@
         let lastForkDistance = 0;
         let forkSwitched = false;
 
-        // Кэшированные спрайты деревьев
         const treeSprites = [];
         function generateTreeSprites() {
             const colors = ['rgba(20, 60, 40, 0.95)', 'rgba(40, 20, 60, 0.95)', 'rgba(15, 25, 45, 0.95)'];
@@ -217,7 +216,7 @@
             }
         }
 
-        const MAX_PARTICLES = 150;
+        const MAX_PARTICLES = 120; // Слегка уменьшено для дополнительной стабильности
         const particles = Array.from({ length: MAX_PARTICLES }, () => ({
             x: 0, y: 0, vx: 0, vy: 0, life: 0, size: 0, active: false, color: ''
         }));
@@ -286,7 +285,6 @@
             
             track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
-            // Ямы
             segmentsSincePothole++;
             if (track.length > 25 && segmentsSincePothole > 12 && Math.random() < 0.04) {
                 segmentsSincePothole = 0;
@@ -299,10 +297,10 @@
                 });
             }
 
-            // ОПТИМИЗАЦИЯ: Снижена плотность деревьев (было 0.75, стало 0.35)
-            // и увеличен минимальный отступ от дороги для лучшей читаемости
+            // МАКСИМАЛЬНАЯ ОПТИМИЗАЦИЯ ДЕРЕВЬЕВ
             const side = Math.random() > 0.5 ? 1 : -1;
-            const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (25 * SCALE) + Math.random() * (180 * SCALE);
+            // Увеличен минимальный отступ (было 25, стало 50), чтобы деревья стояли реже и дальше
+            const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE) + Math.random() * (200 * SCALE);
             const treeX = newX + Math.cos(currentTrackAngle) * dist * side;
             const treeY = newY + Math.sin(currentTrackAngle) * dist * side;
             const treeSize = (40 + Math.random() * 50) * SCALE;
@@ -331,8 +329,8 @@
                 }
             }
 
-            // Шанс спавна снижен с 0.75 до 0.35 для значительного прироста FPS
-            if (canSpawnTree && Math.random() < 0.35) {
+            // Шанс спавна снижен до 0.15 (было 0.35). Теперь деревьев будет в 2.5 раза меньше
+            if (canSpawnTree && Math.random() < 0.15) {
                 decorations.push({
                     x: treeX,
                     y: treeY,
@@ -342,7 +340,6 @@
                 });
             }
 
-            // Развилки
             if ((distance - lastForkDistance) > (800 + Math.random() * 400) && forkBranch.length === 0) {
                 lastForkDistance = distance;
                 forkSwitched = false;
@@ -361,7 +358,6 @@
                 }
             }
 
-            // Очистка
             if (track.length > 400) {
                 track.splice(0, 80);
                 if (abandonedRoad.length > 0) abandonedRoad.splice(0, 80);
