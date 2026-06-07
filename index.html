@@ -2,394 +2,356 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <!-- Важно для TMA: запрет зума и фиксированный viewport -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Neon Drift: TMA Edition</title>
-    <!-- Подключаем API Telegram Mini Apps -->
+    <title>Neon Drift: TMA</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         * { 
             margin: 0; padding: 0; box-sizing: border-box; 
-            touch-action: none; /* Блокирует зум и скролл браузера */
-            -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
-            overscroll-behavior: none; /* Блокирует pull-to-refresh в Telegram */
+            touch-action: none; -webkit-touch-callout: none; 
+            -webkit-user-select: none; user-select: none;
+            overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
         }
         body { 
             background: #050510; color: #e0e0ff; font-family: 'Orbitron', sans-serif; 
             overflow: hidden; width: 100vw; height: 100vh; 
             display: flex; justify-content: center; align-items: center; 
         }
-        #gameCanvas { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; 
-            /* Canvas будет масштабироваться через JS для четкости на Retina */
-        }
+        #gameCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* UI СЛОИ */
         .ui-layer { 
             position: absolute; z-index: 10; width: 100%; height: 100%; 
             pointer-events: none; display: flex; flex-direction: column; 
             justify-content: space-between; padding: 20px; 
-            /* Учитываем безопасные зоны iPhone (челка, нижняя полоса) */
             padding-top: max(20px, env(safe-area-inset-top));
             padding-bottom: max(20px, env(safe-area-inset-bottom));
         }
-        .top-ui { display: flex; justify-content: space-between; align-items: flex-start; }
-        .score-box { text-align: left; text-shadow: 0 0 8px rgba(100, 140, 200, 0.5); }
-        .score-label { font-size: clamp(10px, 2vw, 12px); color: #8a6bb0; letter-spacing: 2px; }
-        .score-value { font-size: clamp(24px, 6vw, 36px); font-weight: 900; color: #6b9eb0; }
-        .combo-box { text-align: right; opacity: 0; transition: opacity 0.3s, transform 0.1s; }
-        .combo-box.active { opacity: 1; animation: pulse 0.5s infinite alternate; }
-        .combo-label { font-size: clamp(12px, 2.5vw, 14px); color: #8a6bb0; letter-spacing: 2px; }
-        .combo-value { font-size: clamp(24px, 6vw, 32px); font-weight: 900; color: #f0f0ff; text-shadow: 0 0 10px rgba(138, 107, 176, 0.7); }
-        
-        .center-ui { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            text-align: center; pointer-events: auto; cursor: pointer; 
-            background: rgba(10, 10, 20, 0.9); padding: 30px; border: 2px solid #5b7a9a; 
-            border-radius: 10px; box-shadow: 0 0 20px rgba(91, 122, 154, 0.3); width: 80%; max-width: 400px;
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 16, 0.85); backdrop-filter: blur(8px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            pointer-events: auto; z-index: 20; transition: opacity 0.3s;
         }
+        .hidden { opacity: 0; pointer-events: none !important; }
+        
         .title { 
-            font-size: clamp(32px, 8vw, 42px); font-weight: 900; 
+            font-size: clamp(36px, 10vw, 52px); font-weight: 900; text-align: center;
             background: linear-gradient(to bottom, #6b9eb0, #8a6bb0); 
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
-            margin-bottom: 15px; letter-spacing: 3px; 
+            margin-bottom: 10px; letter-spacing: 3px; 
         }
-        .subtitle { font-size: clamp(14px, 3vw, 16px); color: #8899aa; letter-spacing: 2px; animation: blink 1.5s infinite; }
-        .gameover-title { font-size: clamp(24px, 6vw, 36px); font-weight: 900; color: #c87890; text-shadow: 0 0 15px rgba(200, 120, 144, 0.6); margin-bottom: 10px; }
-        .final-score { font-size: clamp(18px, 4vw, 24px); color: #bbccdd; margin-bottom: 20px; }
-        .controls-hint { 
-            position: absolute; bottom: 40px; width: 100%; text-align: center; 
-            font-size: clamp(12px, 2.5vw, 14px); color: rgba(200, 210, 230, 0.4); letter-spacing: 2px; pointer-events: none; 
-        }
-        .touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; }
-        .touch-left, .touch-right { flex: 1; }
-        .touch-left.active { background: rgba(100, 140, 180, 0.08); }
-        .touch-right.active { background: rgba(138, 107, 176, 0.08); }
+        .subtitle { font-size: 14px; color: #8899aa; letter-spacing: 2px; margin-bottom: 40px; }
         
-        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.1); } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .hidden { display: none !important; }
+        .btn {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 1px solid #5b7a9a; color: #e0e0ff;
+            padding: 16px 40px; font-family: 'Orbitron', sans-serif;
+            font-size: 16px; font-weight: 700; letter-spacing: 2px;
+            border-radius: 8px; cursor: pointer; margin: 10px;
+            box-shadow: 0 0 15px rgba(91, 122, 154, 0.2);
+            transition: transform 0.1s, box-shadow 0.1s;
+            width: 80%; max-width: 300px; text-align: center;
+        }
+        .btn:active { transform: scale(0.95); box-shadow: 0 0 5px rgba(91, 122, 154, 0.5); }
+        .btn-primary { border-color: #6b9eb0; background: linear-gradient(135deg, #1a2a3a, #0f1a2a); }
+        
+        .profile-box {
+            background: rgba(10, 10, 20, 0.9); border: 1px solid #5b7a9a;
+            border-radius: 12px; padding: 30px; width: 85%; max-width: 320px;
+            text-align: center; margin-bottom: 30px;
+        }
+        .profile-name { font-size: 24px; font-weight: 900; color: #d0e8ff; margin-bottom: 5px; }
+        .profile-id { font-size: 12px; color: #5b7a9a; letter-spacing: 1px; margin-bottom: 20px; }
+        .stat-row { display: flex; justify-content: space-between; margin: 15px 0; border-bottom: 1px solid rgba(91, 122, 154, 0.3); padding-bottom: 10px; }
+        .stat-label { color: #8a6bb0; font-size: 14px; }
+        .stat-value { color: #6b9eb0; font-size: 20px; font-weight: 700; }
+
+        .top-ui { display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+        .score-box { text-align: left; }
+        .score-label { font-size: 11px; color: #8a6bb0; letter-spacing: 2px; }
+        .score-value { font-size: 28px; font-weight: 900; color: #6b9eb0; }
+        
+        .touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; pointer-events: auto; }
+        .touch-left, .touch-right { flex: 1; }
+        .touch-left.active { background: rgba(100, 140, 180, 0.06); }
+        .touch-right.active { background: rgba(138, 107, 176, 0.06); }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas"></canvas>
+
+    <!-- Зоны касания для игры -->
     <div class="touch-zones" id="touchZones">
         <div class="touch-left" id="btnLeft"></div>
-        <div class="touch-right" id="btnRight"></div>
+        <div class="touch-right" id="btnRight"></div
     </div>
-    <div class="ui-layer">
+
+    <!-- Игровой HUD -->
+    <div class="ui-layer" id="gameHud" style="display: none;">
         <div class="top-ui">
             <div class="score-box">
-                <div class="score-label">СЧЕТ ДРИФТА</div>
+                <div class="score-label">СЧЕТ</div>
                 <div class="score-value" id="score">0</div>
             </div>
-            <div class="combo-box" id="comboBox">
-                <div class="combo-label">COMBO</div>
-                <div class="combo-value" id="combo">x1.0</div>
+        </div>
+    </div>
+
+    <!-- Главное меню -->
+    <div class="screen" id="mainMenu">
+        <div class="title">NEON<br>DRIFT</div>
+        <div class="subtitle">TMA EDITION</div>
+        <div class="btn btn-primary" id="btnPlay">ИГРАТЬ</div>
+        <div class="btn" id="btnProfile">ПРОФИЛЬ</div>
+    </div>
+
+    <!-- Экран профиля -->
+    <div class="screen hidden" id="profileScreen">
+        <div class="profile-box">
+            <div class="profile-name" id="profileName">Гонщик</div>
+            <div class="profile-id" id="profileId">ID: ---</div>
+            <div class="stat-row">
+                <span class="stat-label">ЛУЧШИЙ СЧЕТ</span>
+                <span class="stat-value" id="profileHighScore">0</span>
+            </div>
+            <div class="stat-row" style="border: none;">
+                <span class="stat-label">ВСЕГО ЗАЕЗДОВ</span>
+                <span class="stat-value" id="profileRaces">0</span>
+            </div</div>
+        <div class="btn" id="btnBackToMenu">НАЗАД</div>
+    </div>
+
+    <!-- Экран конца игры -->
+    <div class="screen hidden" id="gameoverScreen">
+        <div class="title" style="font-size: 32px; color: #c87890; -webkit-text-fill-color: #c87890;">ВЫЛЕТ</div>
+        <div class="profile-box" style="padding: 20px; margin-bottom: 20px;">
+            <div class="stat-row" style="border: none; justify-content: center; flex-direction: column; align-items: center;">
+                <span class="stat-label">ВАШ СЧЕТ</span>
+                <span class="stat-value" style="font-size: 36px; color: #f0f0ff;" id="finalScore">0</span>
             </div>
         </div>
-        <div class="center-ui" id="startScreen">
-            <div class="title">NEON<br>DRIFT</div>
-            <div class="subtitle">НАЖМИ ЧТОБЫ НАЧАТЬ</div>
-        </div>
-        <div class="center-ui hidden" id="gameoverScreen">
-            <div class="gameover-title">ВЫЛЕТ С ТРАССЫ</div>
-            <div class="final-score" id="finalScore">0</div>
-            <div class="subtitle">НАЖМИ ЧТОБЫ НАЧАТЬ ЗАНОВО</div>
-        </div>
-        <div class="controls-hint" id="hint">УДЕРЖИВАЙ ЛЕВУЮ / ПРАВУЮ СТОРОНУ</div>
+        <div class="btn btn-primary" id="btnRestart">ЗАНОВО</div>
+        <div class="btn" id="btnToMenu">В МЕНЮ</div>
     </div>
 
     <script>
-        // 1. ИНИЦИАЛИЗАЦИЯ TELEGRAM MINI APP
-        if (window.Telegram && window.Telegram.WebApp) {
-            const tg = window.Telegram.WebApp;
-            tg.expand(); // Разворачиваем на весь экран
-            tg.ready();  // Сообщаем Telegram, что приложение готово
-            // Блокируем контекстное меню и свайпы
-            document.addEventListener('contextmenu', e => e.preventDefault());
-        }
+        // 1. ИНИЦИАЛИЗАЦИЯ TELEGRAM
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+        
+        // Получаем данные пользователя (автоматическая "авторизация")
+        const user = tg.initDataUnsafe?.user || {};
+        const userId = user.id || 'guest_' + Math.random().toString(36).substr(2, 9);
+        const userName = user.username || user.first_name || 'Гонщик';
+        
+        // Вибрация при нажатии (Haptic Feedback)
+        const vibrate = (type = 'light') => {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred(type);
+        };
 
+        // 2. LOCAL STORAGE (Локальная "база данных")
+        const getLS = (key, def) => localStorage.getItem('nd_' + userId + '_' + key) || def;
+        const setLS = (key, val) => localStorage.setItem('nd_' + userId + '_' + key, val);
+        
+        let highScore = parseInt(getLS('highscore', 0));
+        let totalRaces = parseInt(getLS('races', 0));
+
+        // Заполнение профиля
+        document.getElementById('profileName').innerText = userName;
+        document.getElementById('profileId').innerText = 'ID: ' + userId;
+        document.getElementById('profileHighScore').innerText = highScore.toLocaleString();
+        document.getElementById('profileRaces').innerText = totalRaces;
+
+        // 3. НАСТРОЙКА CANVAS (Оптимизация)
         const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d', { alpha: false });
+        const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+        let width, height, SCALE = 1, DPR = Math.min(window.devicePixelRatio || 1, 2);
 
-        let width, height, SCALE = 1;
-        const DPR = window.devicePixelRatio || 1;
-
-        // 2. ДИНАМИЧЕСКОЕ МАСШТАБИРОВАНИЕ (Responsive Design)
-        // Базовая ширина для расчетов - 800px. Все размеры будут умножаться на SCALE.
         function resize() {
             width = window.innerWidth;
             height = window.innerHeight;
-            
-            // Вычисляем масштаб относительно базовой ширины 800px
-            SCALE = width / 800; 
-            
-            // Настраиваем Canvas для четкости на Retina/телефонах
+            SCALE = Math.min(width, height) / 700; // Динамический зум
             canvas.width = width * DPR;
             canvas.height = height * DPR;
             canvas.style.width = width + 'px';
             canvas.style.height = height + 'px';
-            
-            // Масштабируем контекст, чтобы вся логика рисования осталась в "базовых" пикселях
             ctx.scale(DPR, DPR);
         }
         window.addEventListener('resize', resize);
         resize();
 
-        let gameState = 'menu';
-        let score = 0, combo = 1.0, comboTimer = 0, frame = 0, shake = 0;
-        let lastTime = 0; // Для Delta Time
-
-        let track = [];
-        // Базовые константы, которые будут масштабироваться
-        const BASE_TRACK_WIDTH = 180;
-        const BASE_SEGMENT_LENGTH = 40;
+        // 4. ИГРОВЫЕ ПЕРЕМЕННЫЕ
+        let gameState = 'menu'; // menu, playing, gameover
+        let score = 0, frame = 0, shake = 0, lastTime = 0;
+        let track = [], decorations = [];
+        const BASE_TRACK_WIDTH = 160, BASE_SEGMENT_LENGTH = 35;
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
-        let decorations = [];
 
-        function drawPineTree(ctx, x, y, size, color) {
+        // ОПТИМИЗАЦИЯ №1: Object Pool для частиц (УБИРАЕТ ФРИЗЫ)
+        const MAX_PARTICLES = 150;
+        const particles = Array.from({ length: MAX_PARTICLES }, () => ({
+            x: 0, y: 0, vx: 0, vy: 0, life: 0, size: 0, active: false
+        }));
+
+        function spawnSmoke(x, y, angle, speedMult) {
+            const p = particles.find(p => !p.active);
+            if (!p) return;
+            p.active = true;
+            p.x = x; p.y = y;
+            p.life = 1.0;
+            p.size = (4 + Math.random() * 5) * SCALE;
+            const spread = (Math.random() - 0.5) * 0.7;
+            const speed = (1.5 + Math.random() * 1.5) * speedMult * SCALE;
+            p.vx = Math.sin(angle + spread) * speed;
+            p.vy = Math.cos(angle + spread) * speed;
+        }
+
+        const car = { x: 0, y: 0, width: 20, height: 38, angle: 0, vx: 0, vy: 0, baseSpeed: 8.0, currentSpeed: 8.0, driftFactor: 0 };
+        let input = { left: false, right: false };
+
+        // 5. ЛОГИКА ТРАССЫ И ДЕРЕВЬЕВ
+        function drawTree(ctx, x, y, size, color) {
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.rect(x - size * 0.08, y, size * 0.16, size * 0.25);
-            ctx.moveTo(x - size * 0.7, y + size * 0.1);
-            ctx.lineTo(x + size * 0.7, y + size * 0.1);
-            ctx.lineTo(x, y - size * 0.4);
-            ctx.moveTo(x - size * 0.5, y - size * 0.2);
-            ctx.lineTo(x + size * 0.5, y - size * 0.2);
-            ctx.lineTo(x, y - size * 0.75);
-            ctx.moveTo(x - size * 0.3, y - size * 0.55);
-            ctx.lineTo(x + size * 0.3, y - size * 0.55);
-            ctx.lineTo(x, y - size * 1.1);
+            // Упрощенная елка (2 треугольника) для максимальной производительности
+            ctx.moveTo(x - size * 0.6, y + size * 0.2);
+            ctx.lineTo(x + size * 0.6, y + size * 0.2);
+            ctx.lineTo(x, y - size * 0.5);
+            ctx.moveTo(x - size * 0.4, y - size * 0.2);
+            ctx.lineTo(x + size * 0.4, y - size * 0.2);
+            ctx.lineTo(x, y - size * 0.9);
             ctx.fill();
         }
 
         function initTrack() {
-            track = [];
-            decorations = [];
-            trackProgress = 0;
-            currentTrackAngle = 0;
-            targetAngle = 0;
-            for (let i = 0; i < 120; i++) addTrackSegment();
-        }
-
-        function addTrackSegment() {
-            const lastPt = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
-            trackProgress++;
-
-            if (trackProgress > 45 + Math.floor(Math.random() * 50)) {
-                targetAngle = (Math.random() - 0.5) * 2.4;
-                trackProgress = 0;
-            }
-            currentTrackAngle += (targetAngle - currentTrackAngle) * 0.08;
-
-            const SEGMENT_LENGTH = BASE_SEGMENT_LENGTH * SCALE;
-            const newX = lastPt.x + Math.sin(currentTrackAngle) * SEGMENT_LENGTH;
-            const newY = lastPt.y - Math.cos(currentTrackAngle) * SEGMENT_LENGTH;
-            track.push({ x: newX, y: newY, angle: currentTrackAngle });
-
-            if (Math.random() < 0.5) { 
-                const side = Math.random() > 0.5 ? 1 : -1; 
-                const TRACK_WIDTH = BASE_TRACK_WIDTH * SCALE;
-                const dist = (TRACK_WIDTH / 2) + (60 * SCALE) + Math.random() * (400 * SCALE);
-                const perpX = Math.cos(currentTrackAngle) * dist * side;
-                const perpY = Math.sin(currentTrackAngle) * dist * side;
-
-                decorations.push({
-                    x: newX + perpX,
-                    y: newY + perpY,
-                    size: (35 + Math.random() * 55) * SCALE,
-                    color: `rgba(${5 + Math.random()*10}, ${5 + Math.random()*10}, ${15 + Math.random()*15}, 1)`,
-                    layer: Math.random() > 0.4 ? 'back' : 'front'
-                });
-            }
-
-            if (track.length > 500) {
-                const removeCount = 100;
-                track.splice(0, removeCount);
-                
-                let writeIdx = 0;
-                const carDistSq = (600 * SCALE) * (600 * SCALE); 
-                for (let i = 0; i < decorations.length; i++) {
-                    const dx = decorations[i].x - car.x;
-                    const dy = decorations[i].y - car.y;
-                    if (dx * dx + dy * dy < carDistSq) {
-                        decorations[writeIdx++] = decorations[i];
-                    }
-                }
-                decorations.length = writeIdx;
-            }
-        }
-
-        const car = { 
-            x: 0, y: 0, 
-            width: 22, height: 40, // Будет умножено на SCALE при отрисовке
-            angle: 0, vx: 0, vy: 0, 
-            baseSpeed: 6.5, currentSpeed: 6.5, driftFactor: 0 
-        };
-        let input = { left: false, right: false };
-        let particles = [];
-        const MAX_PARTICLES = 120;
-
-        const scoreEl = document.getElementById('score');
-        const comboEl = document.getElementById('combo');
-        const comboBox = document.getElementById('comboBox');
-        const startScreen = document.getElementById('startScreen');
-        const gameoverScreen = document.getElementById('gameoverScreen');
-        const finalScoreEl = document.getElementById('finalScore');
-        const hint = document.getElementById('hint');
-        const btnLeft = document.getElementById('btnLeft');
-        const btnRight = document.getElementById('btnRight');
-
-        const handleStart = (side) => {
-            if (gameState === 'menu' || gameState === 'gameover') { startGame(); return; }
-            if (gameState !== 'playing') return;
-            input[side] = true;
-            if (side === 'left') btnLeft.classList.add('active');
-            if (side === 'right') btnRight.classList.add('active');
-        };
-
-        const handleEnd = (side) => {
-            input[side] = false;
-            if (side === 'left') btnLeft.classList.remove('active');
-            if (side === 'right') btnRight.classList.remove('active');
-        };
-
-        ['touchstart', 'mousedown'].forEach(evt => {
-            btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleStart('left'); });
-            btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleStart('right'); });
-        });
-        ['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
-            btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleEnd('left'); });
-            btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleEnd('right'); });
-        });
-
-        window.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') handleStart('left');
-            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleStart('right');
-        });
-        window.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') handleEnd('left');
-            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleEnd('right');
-        });
-
-        function startGame() {
-            gameState = 'playing';
-            score = 0; combo = 1.0; comboTimer = 0; shake = 0; particles = [];
-            input.left = false; input.right = false;
-            btnLeft.classList.remove('active'); btnRight.classList.remove('active');
-            initTrack();
-
-            car.x = track[20].x;
-            car.y = track[20].y;
-            car.angle = track[20].angle;
+            track = []; decorations = []; trackProgress = 0; currentTrackAngle = 0; targetAngle = 0;
+            for (let i = 0; i < 100; i++) addTrackSegment();
+            car.x = track[20].x; car.y = track[20].y; car.angle = track[20].angle;
             car.vx = Math.sin(car.angle) * car.baseSpeed * SCALE;
             car.vy = -Math.cos(car.angle) * car.baseSpeed * SCALE;
             car.currentSpeed = car.baseSpeed * SCALE;
-
-            startScreen.classList.add('hidden');
-            gameoverScreen.classList.add('hidden');
-            hint.classList.remove('hidden');
         }
 
-        function gameOver() {
-            gameState = 'gameover';
-            finalScoreEl.innerText = 'СЧЕТ: ' + Math.floor(score).toLocaleString();
-            gameoverScreen.classList.remove('hidden');
-            hint.classList.add('hidden');
-            car.currentSpeed = 0; car.vx = 0; car.vy = 0; particles = [];
+        function addTrackSegment() {
+            const last = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
+            trackProgress++;
+            if (trackProgress > 40 + Math.floor(Math.random() * 40)) {
+                targetAngle = (Math.random() - 0.5) * 2.2;
+                trackProgress = 0;
+            }
+            currentTrackAngle += (targetAngle - currentTrackAngle) * 0.09;
+            const segLen = BASE_SEGMENT_LENGTH * SCALE;
+            const newX = last.x + Math.sin(currentTrackAngle) * segLen;
+            const newY = last.y - Math.cos(currentTrackAngle) * segLen;
+            track.push({ x: newX, y: newY, angle: currentTrackAngle });
+
+            if (Math.random() < 0.5) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE) + Math.random() * (350 * SCALE);
+                decorations.push({
+                    x: newX + Math.cos(currentTrackAngle) * dist * side,
+                    y: newY + Math.sin(currentTrackAngle) * dist * side,
+                    size: (30 + Math.random() * 45) * SCALE,
+                    color: `rgba(${4 + Math.random()*8}, ${4 + Math.random()*8}, ${14 + Math.random()*12}, 1)`,
+                    layer: Math.random() > 0.5 ? 'back' : 'front'
+                });
+            }
+
+            if (track.length > 400) {
+                track.splice(0, 80);
+                let w = 0;
+                const maxD = (600 * SCALE) ** 2;
+                for (let i = 0; i < decorations.length; i++) {
+                    const dx = decorations[i].x - car.x, dy = decorations[i].y - car.y;
+                    if (dx * dx + dy * dy < maxD) decorations[w++] = decorations[i];
+                }
+                decorations.length = w;
+            }
         }
 
-        function spawnSmoke(x, y, angle, speedMultiplier) {
-            if (particles.length >= MAX_PARTICLES) return;
-            const spread = (Math.random() - 0.5) * 0.8;
-            const speed = (Math.random() * 2 + 1) * speedMultiplier * SCALE;
-            particles.push({
-                x: x, y: y,
-                vx: Math.sin(angle + spread) * speed + car.vx * 0.3,
-                vy: Math.cos(angle + spread) * speed + car.vy * 0.3,
-                life: 1.0, decay: 0.03 + Math.random() * 0.03,
-                size: (Math.random() * 6 + 4) * SCALE, color: `rgba(150, 180, 210,`
-            });
-        }
+        // 6. УПРАВЛЕНИЕ
+        const handleStart = (side) => {
+            if (gameState !== 'playing') return;
+            input[side] = true;
+            document.getElementById(side === 'left' ? 'btnLeft' : 'btnRight').classList.add('active');
+            vibrate('light');
+        };
+        const handleEnd = (side) => {
+            input[side] = false;
+            document.getElementById(side === 'left' ? 'btnLeft' : 'btnRight').classList.remove('active');
+        };
 
-        // 3. DELTA TIME (dt) - Гарантия одинаковой скорости на любом устройстве
+        ['touchstart', 'mousedown'].forEach(e => {
+            document.getElementById('btnLeft').addEventListener(e, (ev) => { ev.preventDefault(); handleStart('left'); });
+            document.getElementById('btnRight').addEventListener(e, (ev) => { ev.preventDefault(); handleStart('right'); });
+        });
+        ['touchend', 'mouseup', 'mouseleave', 'touchcancel'].forEach(e => {
+            document.getElementById('btnLeft').addEventListener(e, (ev) => { ev.preventDefault(); handleEnd('left'); });
+            document.getElementById('btnRight').addEventListener(e, (ev) => { ev.preventDefault(); handleEnd('right'); });
+        });
+
+        // 7. ИГРОВОЙ ЦИКЛ (С Delta Time)
         function update(dt) {
             if (gameState !== 'playing') return;
-            frame++;
-
-            const lastTrackPoint = track[track.length - 1];
-            const distToEnd = Math.hypot(car.x - lastTrackPoint.x, car.y - lastTrackPoint.y);
-            const generateThreshold = 900 * SCALE;
-
-            let addedThisFrame = 0;
-            while (distToEnd < generateThreshold && addedThisFrame < 10) { 
-                addTrackSegment();
-                addedThisFrame++;
-            }
+            
+            const last = track[track.length - 1];
+            if (Math.hypot(car.x - last.x, car.y - last.y) < 800 * SCALE) addTrackSegment();
 
             let minDist = Infinity;
-            for (let i = Math.max(0, track.length - 150); i < track.length; i += 2) {
-                const dist = Math.hypot(car.x - track[i].x, car.y - track[i].y);
-                if (dist < minDist) minDist = dist;
+            for (let i = Math.max(0, track.length - 120); i < track.length; i += 2) {
+                const d = Math.hypot(car.x - track[i].x, car.y - track[i].y);
+                if (d < minDist) minDist = d;
             }
 
-            const TRACK_WIDTH = BASE_TRACK_WIDTH * SCALE;
-            if (minDist >= (TRACK_WIDTH / 2)) { gameOver(); return; }
+            if (minDist >= (BASE_TRACK_WIDTH * SCALE / 2)) {
+                gameOver();
+                return;
+            }
 
-            // Скорость поворота тоже зависит от dt, но не от SCALE (угол есть угол)
-            if (input.left) car.angle -= 0.05 * dt;
-            if (input.right) car.angle += 0.05 * dt;
-            car.angle = Math.max(-1.5, Math.min(1.5, car.angle));
+            if (input.left) car.angle -= 0.06 * dt;
+            if (input.right) car.angle += 0.06 * dt;
+            car.angle = Math.max(-1.4, Math.min(1.4, car.angle));
 
-            const targetVx = Math.sin(car.angle) * car.currentSpeed;
-            const targetVy = -Math.cos(car.angle) * car.currentSpeed;
-            const driftLag = 0.06 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
+            const tVx = Math.sin(car.angle) * car.currentSpeed;
+            const tVy = -Math.cos(car.angle) * car.currentSpeed;
+            const lag = 0.07 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
             
-            // Движение умножаем на dt!
-            car.vx += (targetVx - car.vx) * driftLag * dt;
-            car.vy += (targetVy - car.vy) * driftLag * dt;
-            car.x += car.vx * dt; 
+            car.vx += (tVx - car.vx) * lag * dt;
+            car.vy += (tVy - car.vy) * lag * dt;
+            car.x += car.vx * dt;
             car.y += car.vy * dt;
-            car.currentSpeed += ( (car.baseSpeed * SCALE) - car.currentSpeed ) * 0.05 * dt;
+            car.currentSpeed += ((car.baseSpeed * SCALE) - car.currentSpeed) * 0.06 * dt;
 
-            const velocityAngle = Math.atan2(car.vx, -car.vy);
-            let normalizedDrift = Math.abs(car.angle - velocityAngle);
-            if (normalizedDrift > Math.PI) normalizedDrift = Math.PI * 2 - normalizedDrift;
-            car.driftFactor = normalizedDrift;
+            let drift = Math.abs(car.angle - Math.atan2(car.vx, -car.vy));
+            if (drift > Math.PI) drift = Math.PI * 2 - drift;
+            car.driftFactor = drift;
 
-            if (normalizedDrift > 0.15) {
-                comboTimer = 60;
-                combo = Math.min(combo + 0.015 * dt, 5.0);
-                score += Math.floor(normalizedDrift * 15 * combo * dt);
-                const cos = Math.cos(car.angle), sin = Math.sin(car.angle);
-                const rearOffset = 18 * SCALE;
-                spawnSmoke(car.x - sin * rearOffset - (8*SCALE), car.y + cos * rearOffset, car.angle, 1.5);
-                spawnSmoke(car.x - sin * rearOffset + (8*SCALE), car.y + cos * rearOffset, car.angle, 1.5);
-                if (combo > 2.5 && Math.random() > 0.8) shake = 2 * SCALE;
-            } else {
-                comboTimer -= dt;
-                if (comboTimer <= 0) combo = 1.0;
-            }
-
-            scoreEl.innerText = Math.floor(score).toLocaleString();
-            if (combo > 1.2) {
-                comboBox.classList.add('active');
-                comboEl.innerText = 'x' + combo.toFixed(1);
-            } else {
-                comboBox.classList.remove('active');
-            }
-
-            for (let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i];
-                p.x += p.vx * dt; p.y += p.vy * dt; p.life -= p.decay * dt; p.size += 0.4 * dt * SCALE;
-                if (p.life <= 0) {
-                    particles[i] = particles[particles.length - 1];
-                    particles.pop();
+            if (drift > 0.15) {
+                score += Math.floor(drift * 15 * dt);
+                const c = Math.cos(car.angle), s = Math.sin(car.angle);
+                const off = 16 * SCALE;
+                spawnSmoke(car.x - s * off - 7*SCALE, car.y + c * off, car.angle, 1.5);
+                spawnSmoke(car.x - s * off + 7*SCALE, car.y + c * off, car.angle, 1.5);
+                if (drift > 0.3 && Math.random() > 0.9) {
+                    shake = 2.5 * SCALE;
+                    vibrate('medium'); // Вибрация при сильном дрифте!
                 }
             }
 
-            if (shake > 0) shake *= Math.pow(0.9, dt);
-            if (shake < 0.5 * SCALE) shake = 0;
+            document.getElementById('score').innerText = Math.floor(score).toLocaleString();
+
+            // Обновление пула частиц (БЕЗ создания/удаления объектов!)
+            for (let i = 0; i < MAX_PARTICLES; i++) {
+                const p = particles[i];
+                if (!p.active) continue;
+                p.x += p.vx * dt; p.y += p.vy * dt;
+                p.life -= 0.035 * dt; p.size += 0.3 * dt * SCALE;
+                if (p.life <= 0) p.active = false;
+            }
+
+            if (shake > 0) { shake *= Math.pow(0.85, dt); if (shake < 0.4 * SCALE) shake = 0; }
         }
 
         function draw() {
@@ -397,158 +359,149 @@
             ctx.fillRect(0, 0, width, height);
 
             ctx.save();
-            // Камера следует за машиной с учетом масштаба
             const camX = width / 2 - car.x;
-            const camY = (height * 0.75) - car.y;
-            const shakeX = shake > 0 ? (Math.random() - 0.5) * shake : 0;
-            const shakeY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
-            ctx.translate(camX + shakeX, camY + shakeY);
+            const camY = (height * 0.7) - car.y;
+            const sX = shake > 0 ? (Math.random() - 0.5) * shake : 0;
+            const sY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
+            ctx.translate(camX + sX, camY + sY);
 
-            const startIdx = Math.max(0, track.length - 150);
-            const TRACK_WIDTH = BASE_TRACK_WIDTH * SCALE;
+            const startIdx = Math.max(0, track.length - 120);
+            const tw = BASE_TRACK_WIDTH * SCALE;
             
             if (track.length > 1) {
-                ctx.strokeStyle = '#6a5b8a';
-                ctx.lineWidth = TRACK_WIDTH + (10 * SCALE);
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                ctx.beginPath();
-                ctx.moveTo(track[startIdx].x, track[startIdx].y);
+                // БЕЗ shadowBlur. Быстрая имитация свечения
+                ctx.strokeStyle = 'rgba(90, 70, 110, 0.5)';
+                ctx.lineWidth = tw + 12 * SCALE; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+                ctx.beginPath(); ctx.moveTo(track[startIdx].x, track[startIdx].y);
                 for (let i = startIdx + 1; i < track.length; i++) ctx.lineTo(track[i].x, track[i].y);
                 ctx.stroke();
 
-                ctx.strokeStyle = '#1c1c2e';
-                ctx.lineWidth = TRACK_WIDTH - (8 * SCALE);
-                ctx.stroke();
-
-                ctx.strokeStyle = 'rgba(110, 140, 170, 0.4)';
-                ctx.lineWidth = 2 * SCALE;
-                ctx.setLineDash([20 * SCALE, 30 * SCALE]);
-                ctx.beginPath();
-                ctx.moveTo(track[startIdx].x, track[startIdx].y);
-                for (let i = startIdx + 1; i < track.length; i++) ctx.lineTo(track[i].x, track[i].y);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.strokeStyle = '#1c1c2e'; ctx.lineWidth = tw - 6 * SCALE; ctx.stroke();
+                ctx.strokeStyle = 'rgba(110, 140, 170, 0.4)'; ctx.lineWidth = 2 * SCALE;
+                ctx.setLineDash([15 * SCALE, 25 * SCALE]); ctx.stroke(); ctx.setLineDash([]);
             }
 
-            const viewDistSq = (500 * SCALE) * (500 * SCALE);
-            
+            const viewD = (500 * SCALE) ** 2;
             for (let i = 0; i < decorations.length; i++) {
                 const d = decorations[i];
-                if (d.layer === 'back') {
-                    const dx = d.x - car.x, dy = d.y - car.y;
-                    if (dx * dx + dy * dy < viewDistSq) drawPineTree(ctx, d.x, d.y, d.size, d.color);
-                }
-            }
-            for (let i = 0; i < decorations.length; i++) {
-                const d = decorations[i];
-                if (d.layer === 'front') {
-                    const dx = d.x - car.x, dy = d.y - car.y;
-                    if (dx * dx + dy * dy < viewDistSq) drawPineTree(ctx, d.x, d.y, d.size, d.color);
+                if ((d.x - car.x)**2 + (d.y - car.y)**2 < viewD) {
+                    drawTree(ctx, d.x, d.y, d.size, d.color);
                 }
             }
 
-            for (let i = 0; i < particles.length; i++) {
+            for (let i = 0; i < MAX_PARTICLES; i++) {
                 const p = particles[i];
-                ctx.fillStyle = p.color + p.life * 0.35 + ')';
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, 6.2832);
-                ctx.fill();
+                if (!p.active) continue;
+                ctx.fillStyle = `rgba(140, 160, 190, ${p.life * 0.35})`;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 6.2832); ctx.fill();
             }
 
             if (gameState === 'playing' || gameState === 'gameover') {
-                ctx.save();
-                ctx.translate(car.x, car.y);
-                ctx.rotate(car.angle);
-
+                ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
                 const cw = car.width * SCALE, ch = car.height * SCALE;
-                ctx.shadowBlur = 10 * SCALE;
-                ctx.shadowColor = '#5b8a9f';
-                ctx.fillStyle = '#0e0e1a';
-                ctx.strokeStyle = '#5b8a9f';
-                ctx.lineWidth = 2 * SCALE;
-                ctx.beginPath();
-                ctx.roundRect(-cw / 2, -ch / 2, cw, ch, 5 * SCALE);
-                ctx.fill(); ctx.stroke();
-
-                ctx.fillStyle = '#5b8a9f';
-                ctx.globalAlpha = 0.4;
-                ctx.fillRect(-cw / 2 + 3*SCALE, -ch / 2 + 8*SCALE, cw - 6*SCALE, 10*SCALE);
-                ctx.globalAlpha = 1.0;
-
+                
+                ctx.fillStyle = '#0e0e1a'; ctx.strokeStyle = '#5b8a9f'; ctx.lineWidth = 2 * SCALE;
+                ctx.beginPath(); ctx.roundRect(-cw/2, -ch/2, cw, ch, 4*SCALE); ctx.fill(); ctx.stroke();
+                
                 ctx.fillStyle = '#d0e8ff';
-                ctx.shadowColor = '#d0e8ff';
-                ctx.shadowBlur = 14 * SCALE;
-                ctx.fillRect(-cw / 2 + 2*SCALE, -ch / 2, 5*SCALE, 3*SCALE);
-                ctx.fillRect(cw / 2 - 7*SCALE, -ch / 2, 5*SCALE, 3*SCALE);
-
-                const brakeIntensity = car.driftFactor > 0.2 ? 1.0 : 0.4;
-                ctx.fillStyle = `rgba(200, 60, 80, ${brakeIntensity})`;
-                ctx.shadowColor = '#c83250';
-                ctx.shadowBlur = 10 * brakeIntensity * SCALE;
-                ctx.fillRect(-cw / 2 + 2*SCALE, ch / 2 - 3*SCALE, 7*SCALE, 3*SCALE);
-                ctx.fillRect(cw / 2 - 9*SCALE, ch / 2 - 3*SCALE, 7*SCALE, 3*SCALE);
+                ctx.fillRect(-cw/2 + 2*SCALE, -ch/2, 4*SCALE, 3*SCALE);
+                ctx.fillRect(cw/2 - 6*SCALE, -ch/2, 4*SCALE, 3*SCALE);
+                
+                const br = car.driftFactor > 0.2 ? 1.0 : 0.4;
+                ctx.fillStyle = `rgba(200, 60, 80, ${br})`;
+                ctx.fillRect(-cw/2 + 2*SCALE, ch/2 - 3*SCALE, 6*SCALE, 3*SCALE);
+                ctx.fillRect(cw/2 - 8*SCALE, ch/2 - 3*SCALE, 6*SCALE, 3*SCALE);
                 ctx.restore();
 
-                ctx.save();
-                ctx.translate(car.x, car.y);
-                ctx.rotate(car.angle);
+                // Фары (простой полигон, 0 нагрузки на GPU)
+                ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
                 ctx.globalCompositeOperation = 'screen';
-                const beamGrad = ctx.createLinearGradient(0, -ch / 2, 0, -ch / 2 - 160 * SCALE);
-                beamGrad.addColorStop(0, 'rgba(100, 140, 180, 0.2)');
-                beamGrad.addColorStop(1, 'rgba(100, 140, 180, 0)');
-                ctx.fillStyle = beamGrad;
+                ctx.fillStyle = 'rgba(100, 140, 180, 0.15)';
                 ctx.beginPath();
-                ctx.moveTo(-cw / 2 + 4*SCALE, -ch / 2);
-                ctx.lineTo(-cw - 15*SCALE, -ch / 2 - 160*SCALE);
-                ctx.lineTo(cw + 15*SCALE, -ch / 2 - 160*SCALE);
-                ctx.lineTo(cw / 2 - 4*SCALE, -ch / 2);
-                ctx.fill();
-                ctx.restore();
+                ctx.moveTo(-cw/2 + 3*SCALE, -ch/2);
+                ctx.lineTo(-cw - 10*SCALE, -ch/2 - 120*SCALE);
+                ctx.lineTo(cw + 10*SCALE, -ch/2 - 120*SCALE);
+                ctx.lineTo(cw/2 - 3*SCALE, -ch/2);
+                ctx.fill(); ctx.restore();
             }
             ctx.restore();
 
-            // Туман масштабируется вместе с экраном
-            const screenCarX = width / 2 + shakeX;
-            const screenCarY = height * 0.75 + shakeY;
-            const fogRadius = 450 * SCALE; 
-
-            const fogGrad = ctx.createRadialGradient(
-                screenCarX, screenCarY - (100 * SCALE), 80 * SCALE, 
-                screenCarX, screenCarY - (100 * SCALE), fogRadius
-            );
-            fogGrad.addColorStop(0, 'rgba(5, 5, 16, 0)');      
-            fogGrad.addColorStop(0.5, 'rgba(5, 5, 16, 0.6)');  
-            fogGrad.addColorStop(0.85, 'rgba(5, 5, 16, 0.95)'); 
-            fogGrad.addColorStop(1, 'rgba(5, 5, 16, 1)');      
-
-            ctx.fillStyle = fogGrad;
-            ctx.fillRect(0, 0, width, height);
-            
-            const backFog = ctx.createLinearGradient(0, height * 0.85, 0, height);
-            backFog.addColorStop(0, 'rgba(5, 5, 16, 0)');
-            backFog.addColorStop(1, 'rgba(5, 5, 16, 1)'); 
-            ctx.fillStyle = backFog;
-            ctx.fillRect(0, height * 0.85, width, height * 0.15);
+            // Туман (Виньетка)
+            const fogR = 450 * SCALE;
+            const fg = ctx.createRadialGradient(width/2, height*0.7, 60*SCALE, width/2, height*0.7, fogR);
+            fg.addColorStop(0, 'rgba(5, 5, 16, 0)');
+            fg.addColorStop(0.5, 'rgba(5, 5, 16, 0.6)');
+            fg.addColorStop(1, 'rgba(5, 5, 16, 1)'); // 100% черный край
+            ctx.fillStyle = fg; ctx.fillRect(0, 0, width, height);
         }
 
-        // 4. GAME LOOP С DELTA TIME
         function loop(timestamp) {
             if (!lastTime) lastTime = timestamp;
-            // dt = 1.0 при 60 FPS. Если FPS падает до 30, dt = 2.0, и движения удваиваются, сохраняя реальную скорость.
-            const dt = Math.min((timestamp - lastTime) / 16.666, 3.0); 
+            const dt = Math.min((timestamp - lastTime) / 16.666, 3.0); // Delta Time
             lastTime = timestamp;
-
             update(dt);
             draw();
             requestAnimationFrame(loop);
         }
 
+        // 8. УПРАВЛЕНИЕ СОСТОЯНИЯМИ (МЕНЮ / ИГРА)
+        function startGame() {
+            gameState = 'playing';
+            score = 0; shake = 0;
+            particles.forEach(p => p.active = false); // Очистка пула
+            totalRaces++;
+            setLS('races', totalRaces);
+            
+            initTrack();
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('gameoverScreen').classList.add('hidden');
+            document.getElementById('gameHud').style.display = 'flex';
+            vibrate('medium');
+        }
+
+        function gameOver() {
+            gameState = 'gameover';
+            vibrate('heavy');
+            if (score > highScore) {
+                highScore = score;
+                setLS('highscore', highScore);
+            }
+            document.getElementById('finalScore').innerText = Math.floor(score).toLocaleString();
+            document.getElementById('gameHud').style.display = 'none';
+            document.getElementById('gameoverScreen').classList.remove('hidden');
+        }
+
+        function showProfile() {
+            document.getElementById('profileHighScore').innerText = highScore.toLocaleString();
+            document.getElementById('profileRaces').innerText = totalRaces;
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('profileScreen').classList.remove('hidden');
+            vibrate('light');
+        }
+
+        function backToMenu() {
+            gameState = 'menu';
+            document.getElementById('profileScreen').classList.add('hidden');
+            document.getElementById('gameoverScreen').classList.add('hidden');
+            document.getElementById('mainMenu').classList.remove('hidden');
+            document.getElementById('gameHud').style.display = 'none';
+            vibrate('light');
+        }
+
+        // Привязка кнопок UI
+        document.getElementById('btnPlay').addEventListener('click', startGame);
+        document.getElementById('btnRestart').addEventListener('click', startGame);
+        document.getElementById('btnProfile').addEventListener('click', showProfile);
+        document.getElementById('btnBackToMenu').addEventListener('click', backToMenu);
+        document.getElementById('btnToMenu').addEventListener('click', backToMenu);
+
+        // Блокировка скролла
+        document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+        document.addEventListener('gesturestart', e => e.preventDefault());
+
+        // Запуск
         initTrack();
         requestAnimationFrame(loop);
-
-        document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
-        document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
     </script>
 </body>
 </html>
