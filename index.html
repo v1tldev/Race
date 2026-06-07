@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Neon Drift: TMA</title>
+    <title>Neon Drift: Deep Forest</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -14,7 +14,7 @@
             overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
         }
         body { 
-            background: #050510; color: #e0e0ff; font-family: 'Orbitron', sans-serif; 
+            background: #02020a; color: #e0e0ff; font-family: 'Orbitron', sans-serif; 
             overflow: hidden; width: 100vw; height: 100vh; 
             display: flex; justify-content: center; align-items: center; 
         }
@@ -29,7 +29,7 @@
         }
         .screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 5, 16, 0.92); backdrop-filter: blur(12px);
+            background: rgba(2, 2, 10, 0.95); backdrop-filter: blur(12px);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             pointer-events: auto; z-index: 20; transition: opacity 0.3s;
         }
@@ -37,7 +37,7 @@
         
         .title { 
             font-size: clamp(36px, 10vw, 52px); font-weight: 900; text-align: center;
-            background: linear-gradient(to bottom, #6b9eb0, #8a6bb0); 
+            background: linear-gradient(to bottom, #4affaa, #8a6bb0); 
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
             margin-bottom: 10px; letter-spacing: 3px; 
         }
@@ -54,7 +54,7 @@
             width: 80%; max-width: 300px; text-align: center;
         }
         .btn:active { transform: scale(0.95); box-shadow: 0 0 5px rgba(91, 122, 154, 0.5); }
-        .btn-primary { border-color: #6b9eb0; background: linear-gradient(135deg, #1a2a3a, #0f1a2a); }
+        .btn-primary { border-color: #4affaa; background: linear-gradient(135deg, #0f2a1a, #0a1a10); }
         
         .profile-box {
             background: rgba(10, 10, 20, 0.9); border: 1px solid #5b7a9a;
@@ -65,20 +65,20 @@
         .profile-id { font-size: 12px; color: #5b7a9a; letter-spacing: 1px; margin-bottom: 25px; }
         .stat-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; border-bottom: 1px solid rgba(91, 122, 154, 0.3); padding-bottom: 10px; }
         .stat-label { color: #8a6bb0; font-size: 14px; }
-        .stat-value { color: #6b9eb0; font-size: 22px; font-weight: 700; }
+        .stat-value { color: #4affaa; font-size: 22px; font-weight: 700; }
 
         .top-ui { display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; width: 100%; }
         .score-box { text-align: left; }
         .score-label { font-size: 11px; color: #8a6bb0; letter-spacing: 2px; }
-        .score-value { font-size: 28px; font-weight: 900; color: #6b9eb0; }
+        .score-value { font-size: 28px; font-weight: 900; color: #4affaa; }
         .dist-box { text-align: right; }
         .dist-label { font-size: 11px; color: #8a6bb0; letter-spacing: 2px; }
         .dist-value { font-size: 24px; font-weight: 900; color: #c87890; }
         
         .touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; pointer-events: auto; }
         .touch-left, .touch-right { flex: 1; }
-        .touch-left.active { background: rgba(100, 140, 180, 0.06); }
-        .touch-right.active { background: rgba(138, 107, 176, 0.06); }
+        .touch-left.active { background: rgba(74, 255, 170, 0.04); }
+        .touch-right.active { background: rgba(138, 107, 176, 0.04); }
 
         #gameoverScreen { cursor: pointer; justify-content: center; }
         .tap-hint { font-size: 12px; color: #5b7a9a; margin-top: 15px; animation: blink 1.5s infinite; }
@@ -108,7 +108,7 @@
 
     <div class="screen" id="mainMenu">
         <div class="title">NEON<br>DRIFT</div>
-        <div class="subtitle">TMA EDITION</div>
+        <div class="subtitle">DEEP FOREST EDITION</div>
         <div class="btn btn-primary" id="btnPlay">ИГРАТЬ</div>
         <div class="btn" id="btnProfile">ПРОФИЛЬ</div>
     </div>
@@ -186,35 +186,39 @@
         let score = 0, distance = 0, frame = 0, shake = 0, lastTime = 0;
         
         let track = [], forkBranch = [], abandonedRoad = []; 
-        let decorations = [], potholes = [], boostPads = [];
+        let decorations = [], potholes = [], mistParticles = [];
         
         const BASE_TRACK_WIDTH = 160, BASE_SEGMENT_LENGTH = 35;
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
         let segmentsSincePothole = 0; 
         let segmentsSinceLastFork = 0;
         let forkSwitched = false;
-        let boostTimer = 0;
+        
+        // Для моста
+        let segmentsSinceBridge = 0;
+        let isBridgeActive = false;
+        let bridgeLength = 0;
 
-        const MAX_PARTICLES = 180;
+        const MAX_PARTICLES = 200;
         const particles = Array.from({ length: MAX_PARTICLES }, () => ({
             x: 0, y: 0, vx: 0, vy: 0, life: 0, size: 0, active: false, color: ''
         }));
 
-        function spawnParticle(x, y, angle, speedMult, isBoost = false) {
+        function spawnParticle(x, y, angle, speedMult, isMist = false) {
             const p = particles.find(p => !p.active);
             if (!p) return;
             p.active = true; p.x = x; p.y = y; p.life = 1.0;
-            p.size = (isBoost ? 3 : 4 + Math.random() * 5) * SCALE;
-            const spread = (Math.random() - 0.5) * (isBoost ? 1.5 : 0.7);
-            const speed = (isBoost ? 3 : 1.5 + Math.random() * 1.5) * speedMult * SCALE;
+            p.size = (isMist ? 8 + Math.random() * 12 : 3 + Math.random() * 4) * SCALE;
+            const spread = (Math.random() - 0.5) * (isMist ? 3.0 : 0.7);
+            const speed = (isMist ? 0.5 : 1.5 + Math.random() * 1.5) * speedMult * SCALE;
             p.vx = Math.sin(angle + spread) * speed;
             p.vy = Math.cos(angle + spread) * speed;
-            p.color = isBoost ? `rgba(${100 + Math.random()*155}, 240, 255,` : `rgba(140, 160, 190,`;
+            p.color = isMist ? `rgba(100, 200, 255,` : `rgba(140, 160, 190,`;
         }
 
         const car = { 
             x: 0, y: 0, width: 20, height: 38, angle: 0, vx: 0, vy: 0, 
-            baseSpeed: 8.5, currentSpeed: 8.5, driftFactor: 0, skidTime: 0 
+            baseSpeed: 8.0, currentSpeed: 8.0, driftFactor: 0, skidTime: 0 
         };
         let input = { left: false, right: false };
 
@@ -231,23 +235,24 @@
         }
 
         function drawPothole(ctx, x, y, size) {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.beginPath();
             ctx.ellipse(x, y, size, size * 0.6, 0, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = 'rgba(20, 20, 30, 0.9)';
+            ctx.fillStyle = 'rgba(10, 10, 20, 0.9)';
             ctx.beginPath();
             ctx.ellipse(x, y, size * 0.65, size * 0.4, 0, 0, Math.PI * 2);
             ctx.fill();
         }
 
         function initTrack() {
-            track = []; forkBranch = []; abandonedRoad = []; decorations = []; potholes = []; boostPads = [];
+            track = []; forkBranch = []; abandonedRoad = []; decorations = []; potholes = []; 
             trackProgress = 0; currentTrackAngle = 0; targetAngle = 0;
             segmentsSincePothole = 0;
             segmentsSinceLastFork = 0;
+            segmentsSinceBridge = 0;
+            isBridgeActive = false;
             forkSwitched = false;
-            boostTimer = 0;
             
             for (let i = 0; i < 100; i++) addTrackSegment();
             
@@ -263,9 +268,10 @@
             const last = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
             trackProgress++;
             segmentsSinceLastFork++;
+            segmentsSinceBridge++;
             
             if (trackProgress > 30 + Math.floor(Math.random() * 35)) {
-                targetAngle = (Math.random() - 0.5) * 3.2;
+                targetAngle = (Math.random() - 0.5) * 3.0; // Чуть уменьшил для плавности
                 trackProgress = 0;
             }
             currentTrackAngle += (targetAngle - currentTrackAngle) * 0.12;
@@ -274,73 +280,106 @@
             const newX = last.x + Math.sin(currentTrackAngle) * segLen;
             const newY = last.y - Math.cos(currentTrackAngle) * segLen;
             
-            track.push({ x: newX, y: newY, angle: currentTrackAngle });
+            track.push({ x: newX, y: newY, angle: currentTrackAngle, isBridge: isBridgeActive });
 
-            // Ямы
-            segmentsSincePothole++;
-            if (track.length > 25 && segmentsSincePothole > 12 && Math.random() < 0.04) {
-                segmentsSincePothole = 0;
-                const trackW = BASE_TRACK_WIDTH * SCALE;
-                const offset = (Math.random() - 0.5) * (trackW * 0.7);
-                potholes.push({ 
-                    x: newX + Math.cos(currentTrackAngle) * offset, 
-                    y: newY + Math.sin(currentTrackAngle) * offset, 
-                    size: 15 * SCALE, active: true 
-                });
-            }
-
-            // Нитро-бусты (редкие, только на относительно прямых участках)
-            if (track.length > 50 && Math.random() < 0.015 && Math.abs(targetAngle) < 1.0) {
-                boostPads.push({ 
-                    x: newX, y: newY, angle: currentTrackAngle, active: true 
-                });
-            }
-
-            // ИСПРАВЛЕНИЕ 1: Защита от спавна деревьев на текущей дороге (и на развилке)
-            let canSpawnTree = true;
-            const checkLimit = Math.max(0, track.length - 20);
-            for (let i = checkLimit; i < track.length; i++) {
-                if (Math.hypot(newX - track[i].x, newY - track[i].y) < (BASE_TRACK_WIDTH * SCALE / 2) + (30 * SCALE)) {
-                    canSpawnTree = false; break;
+            // Логика моста (каждые ~1000 сегментов, длится 60 сегментов)
+            if (!isBridgeActive && segmentsSinceBridge > 1000 && Math.random() < 0.05) {
+                isBridgeActive = true;
+                bridgeLength = 60;
+            } else if (isBridgeActive) {
+                bridgeLength--;
+                if (bridgeLength <= 0) {
+                    isBridgeActive = false;
+                    segmentsSinceBridge = 0;
                 }
             }
-            
-            if (canSpawnTree && forkBranch.length > 0) {
-                for (let i = 0; i < forkBranch.length; i++) {
-                    if (Math.hypot(newX - forkBranch[i].x, newY - forkBranch[i].y) < (BASE_TRACK_WIDTH * SCALE / 2) + (40 * SCALE)) {
+
+            // Ямы (не спавним на мосту)
+            if (!isBridgeActive) {
+                segmentsSincePothole++;
+                if (track.length > 25 && segmentsSincePothole > 12 && Math.random() < 0.04) {
+                    segmentsSincePothole = 0;
+                    const trackW = BASE_TRACK_WIDTH * SCALE;
+                    const offset = (Math.random() - 0.5) * (trackW * 0.7);
+                    potholes.push({ 
+                        x: newX + Math.cos(currentTrackAngle) * offset, 
+                        y: newY + Math.sin(currentTrackAngle) * offset, 
+                        size: 15 * SCALE, active: true 
+                    });
+                }
+            }
+
+            // Генерация ГУСТОГО леса (только если не мост)
+            if (!isBridgeActive) {
+                let canSpawnTree = true;
+                // Проверка, чтобы не спавнить на текущей дороге
+                const checkLimit = Math.max(0, track.length - 15);
+                for (let i = checkLimit; i < track.length; i++) {
+                    if (Math.hypot(newX - track[i].x, newY - track[i].y) < (BASE_TRACK_WIDTH * SCALE / 2) + (20 * SCALE)) {
                         canSpawnTree = false; break;
                     }
                 }
+                // Проверка, чтобы не спавнить на развилке
+                if (canSpawnTree && forkBranch.length > 0) {
+                    for (let i = 0; i < forkBranch.length; i++) {
+                        if (Math.hypot(newX - forkBranch[i].x, newY - forkBranch[i].y) < (BASE_TRACK_WIDTH * SCALE / 2) + (30 * SCALE)) {
+                            canSpawnTree = false; break;
+                        }
+                    }
+                }
+
+                if (canSpawnTree && Math.random() < 0.7) { // Увеличил шанс до 70%
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    // Уменьшил минимальное расстояние до 15px, чтобы деревья были ПЛОТНО у дороги
+                    const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (15 * SCALE) + Math.random() * (120 * SCALE);
+                    
+                    // Более яркие неоновые цвета для видимости в темноте
+                    const colorType = Math.random();
+                    let treeColor;
+                    if (colorType < 0.4) treeColor = `rgba(20, 80, 50, 0.9)`; // Изумрудный
+                    else if (colorType < 0.8) treeColor = `rgba(60, 20, 80, 0.9)`; // Фиолетовый
+                    else treeColor = `rgba(30, 30, 60, 0.95)`; // Темно-синий
+
+                    decorations.push({
+                        x: newX + Math.cos(currentTrackAngle) * dist * side,
+                        y: newY + Math.sin(currentTrackAngle) * dist * side,
+                        size: (35 + Math.random() * 55) * SCALE,
+                        color: treeColor,
+                        layer: Math.random() > 0.4 ? 'back' : 'front'
+                    });
+                }
+            } else {
+                // Если мост, спавним частицы тумана над "водой"
+                if (Math.random() < 0.3) {
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (30 * SCALE);
+                    spawnParticle(
+                        newX + Math.cos(currentTrackAngle) * dist * side,
+                        newY + Math.sin(currentTrackAngle) * dist * side,
+                        currentTrackAngle, 1, true
+                    );
+                }
             }
 
-            if (canSpawnTree && Math.random() < 0.5) {
-                const side = Math.random() > 0.5 ? 1 : -1;
-                const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE) + Math.random() * (350 * SCALE);
-                decorations.push({
-                    x: newX + Math.cos(currentTrackAngle) * dist * side,
-                    y: newY + Math.sin(currentTrackAngle) * dist * side,
-                    size: (30 + Math.random() * 45) * SCALE,
-                    color: `rgba(${4 + Math.random()*8}, ${4 + Math.random()*8}, ${14 + Math.random()*12}, 1)`,
-                    layer: Math.random() > 0.5 ? 'back' : 'front'
-                });
-            }
-
-            // Развилка
+            // ИСПРАВЛЕНИЕ ПЕТЛИ: Развилка теперь имеет направленное отклонение
             if (segmentsSinceLastFork > 180 && forkBranch.length === 0) {
                 segmentsSinceLastFork = 0;
                 forkSwitched = false;
                 const dir = Math.random() > 0.5 ? 1 : -1;
-                const branchAngle = currentTrackAngle + (dir * 0.9); 
+                const branchAngle = currentTrackAngle + (dir * 0.8); 
                 
                 let bx = newX, by = newY, bAngle = branchAngle;
-                forkBranch = [{ x: bx, y: by, angle: bAngle }];
+                forkBranch = [{ x: bx, y: by, angle: bAngle, isBridge: false }];
+                
                 for (let i = 0; i < 60; i++) {
-                    let wander = (Math.random() - 0.5) * 0.25;
-                    if (i < 15) wander = (Math.random() * 0.15) * dir; 
-                    bAngle += wander;
+                    // Жесткий контроль: угол всегда стремится сохранить направление отвода (dir)
+                    // и лишь слегка виляет (+- 0.1), не давая завернуться назад
+                    let wander = (Math.random() - 0.5) * 0.2;
+                    bAngle += wander + (dir * 0.05); 
+                    
                     bx += Math.sin(bAngle) * segLen;
                     by -= Math.cos(bAngle) * segLen;
-                    forkBranch.push({ x: bx, y: by, angle: bAngle });
+                    forkBranch.push({ x: bx, y: by, angle: bAngle, isBridge: false });
                 }
             }
 
@@ -363,13 +402,6 @@
                     if (dx * dx + dy * dy < maxD) potholes[w++] = potholes[i];
                 }
                 potholes.length = w;
-                
-                w = 0;
-                for (let i = 0; i < boostPads.length; i++) {
-                    const dx = boostPads[i].x - car.x, dy = boostPads[i].y - car.y;
-                    if (dx * dx + dy * dy < maxD) boostPads[w++] = boostPads[i];
-                }
-                boostPads.length = w;
             }
         }
 
@@ -444,21 +476,6 @@
                 }
             }
 
-            // Нитро-бусты
-            for (let i = 0; i < boostPads.length; i++) {
-                const b = boostPads[i];
-                if (!b.active) continue;
-                if (Math.hypot(car.x - b.x, car.y - b.y) < (BASE_TRACK_WIDTH * SCALE / 2)) {
-                    b.active = false;
-                    boostTimer = 120; // 2 секунды при 60 FPS
-                    car.currentSpeed = car.baseSpeed * SCALE * 1.6;
-                    shake = 6 * SCALE;
-                    vibrate('heavy');
-                    // Взрыв частиц
-                    for(let k=0; k<15; k++) spawnParticle(car.x, car.y, car.angle + Math.PI, 2, true);
-                }
-            }
-
             if (input.left) car.angle -= 0.065 * dt;
             if (input.right) car.angle += 0.065 * dt;
 
@@ -475,22 +492,18 @@
             car.vy += (tVy - car.vy) * currentLag * dt;
             car.x += car.vx * dt;
             car.y += car.vy * dt;
-            
-            // Плавное возвращение скорости после буста
-            const targetSpeed = boostTimer > 0 ? (car.baseSpeed * SCALE * 1.6) : (car.baseSpeed * SCALE);
-            car.currentSpeed += (targetSpeed - car.currentSpeed) * 0.06 * dt;
-            if (boostTimer > 0) boostTimer -= dt;
+            car.currentSpeed += ((car.baseSpeed * SCALE) - car.currentSpeed) * 0.06 * dt;
 
             let drift = Math.abs(car.angle - Math.atan2(car.vx, -car.vy));
             if (drift > Math.PI) drift = Math.PI * 2 - drift;
             car.driftFactor = drift;
 
             if (drift > 0.15 && car.skidTime <= 0) {
-                score += Math.floor(drift * 15 * dt * (boostTimer > 0 ? 1.5 : 1));
+                score += Math.floor(drift * 15 * dt);
                 const c = Math.cos(car.angle), s = Math.sin(car.angle);
                 const off = 16 * SCALE;
-                spawnParticle(car.x - s * off - 7*SCALE, car.y + c * off, car.angle, 1.5, boostTimer > 0);
-                spawnParticle(car.x - s * off + 7*SCALE, car.y + c * off, car.angle, 1.5, boostTimer > 0);
+                spawnParticle(car.x - s * off - 7*SCALE, car.y + c * off, car.angle, 1.5, false);
+                spawnParticle(car.x - s * off + 7*SCALE, car.y + c * off, car.angle, 1.5, false);
                 if (drift > 0.3 && Math.random() > 0.9) {
                     shake = 2.5 * SCALE;
                     vibrate('medium');
@@ -505,7 +518,7 @@
                 const p = particles[i];
                 if (!p.active) continue;
                 p.x += p.vx * dt; p.y += p.vy * dt;
-                p.life -= 0.035 * dt; p.size += 0.3 * dt * SCALE;
+                p.life -= 0.025 * dt; p.size += 0.4 * dt * SCALE;
                 if (p.life <= 0) p.active = false;
             }
 
@@ -513,19 +526,15 @@
         }
 
         function draw() {
-            ctx.fillStyle = '#050510';
+            ctx.fillStyle = '#02020a';
             ctx.fillRect(0, 0, width, height);
 
             ctx.save();
-            // Эффект FOV при бусте: камера чуть отъезжает назад
-            const boostZoom = boostTimer > 0 ? 0.95 : 1.0;
             const camX = width / 2 - car.x;
-            const camY = ((height * 0.7) - car.y) * boostZoom + (height * 0.3 * (1 - boostZoom));
+            const camY = (height * 0.7) - car.y;
             const sX = shake > 0 ? (Math.random() - 0.5) * shake : 0;
             const sY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
-            
             ctx.translate(camX + sX, camY + sY);
-            if (boostZoom < 1.0) ctx.scale(boostZoom, boostZoom);
 
             const tw = BASE_TRACK_WIDTH * SCALE;
 
@@ -533,15 +542,19 @@
                 if (pathArr.length < 2) return;
                 const startIdx = Math.max(0, pathArr.length - 120);
                 const alpha = (isFork ? 0.4 : 0.5) * alphaOverride;
-                const color = isFork ? '#5a4b6a' : '#6a5b8a';
+                
+                // Если это мост, меняем цвет обочины на неоново-голубой
+                const isCurrentBridge = pathArr[pathArr.length-1]?.isBridge;
+                const edgeColor = isCurrentBridge ? '#00f0ff' : '#6a5b8a';
+                const glowColor = isCurrentBridge ? 'rgba(0, 240, 255, 0.4)' : 'rgba(90, 70, 110, ' + alpha + ')';
 
-                ctx.strokeStyle = `rgba(90, 70, 110, ${alpha})`;
+                ctx.strokeStyle = glowColor;
                 ctx.lineWidth = tw + 12 * SCALE; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
                 ctx.beginPath(); ctx.moveTo(pathArr[startIdx].x, pathArr[startIdx].y);
                 for (let i = startIdx + 1; i < pathArr.length; i++) ctx.lineTo(pathArr[i].x, pathArr[i].y);
                 ctx.stroke();
 
-                ctx.strokeStyle = color; ctx.lineWidth = tw; ctx.stroke();
+                ctx.strokeStyle = edgeColor; ctx.lineWidth = tw; ctx.stroke();
                 ctx.strokeStyle = '#1c1c2e'; ctx.lineWidth = tw - 6 * SCALE; ctx.stroke();
                 
                 ctx.strokeStyle = `rgba(110, 140, 170, ${(isFork ? 0.25 : 0.4) * alphaOverride})`; 
@@ -561,7 +574,7 @@
 
             drawPath(track, false);
             
-            // ИСПРАВЛЕНИЕ 2: Идеальный Y-образный стык без наслоения
+            // Идеальный Y-образный стык
             if (forkBranch.length > 0 && !forkSwitched) {
                 const p0 = forkBranch[0];
                 const angleMain = currentTrackAngle;
@@ -578,7 +591,6 @@
                 const fRX = p0.x - Math.cos(angleFork) * r;
                 const fRY = p0.y - Math.sin(angleFork) * r;
 
-                // Асфальтовый мостик
                 ctx.fillStyle = '#1c1c2e';
                 ctx.beginPath();
                 ctx.moveTo(mLX, mLY);
@@ -588,7 +600,6 @@
                 ctx.closePath();
                 ctx.fill();
 
-                // Неоновая окантовка мостика
                 ctx.strokeStyle = '#6a5b8a';
                 ctx.lineWidth = 4 * SCALE;
                 ctx.stroke();
@@ -596,47 +607,44 @@
                 drawPath(forkBranch, true);
             }
 
-            // Отрисовка нитро-бустов
-            for (let i = 0; i < boostPads.length; i++) {
-                const b = boostPads[i];
-                if (!b.active) continue;
-                if ((b.x - car.x)**2 + (b.y - car.y)**2 < (600 * SCALE)**2) {
-                    ctx.save();
-                    ctx.translate(b.x, b.y);
-                    ctx.rotate(b.angle);
-                    ctx.fillStyle = 'rgba(0, 240, 255, 0.3)';
-                    ctx.shadowBlur = 15 * SCALE;
-                    ctx.shadowColor = '#00f0ff';
-                    ctx.fillRect(- (tw / 2), -10 * SCALE, tw, 20 * SCALE);
-                    ctx.shadowBlur = 0;
-                    ctx.restore();
+            const viewD = (600 * SCALE) ** 2;
+            
+            // Сначала задний план леса
+            for (let i = 0; i < decorations.length; i++) {
+                const d = decorations[i];
+                if (d.layer === 'back' && (d.x - car.x)**2 + (d.y - car.y)**2 < viewD) {
+                    drawTree(ctx, d.x, d.y, d.size, d.color);
                 }
             }
 
-            const viewD = (600 * SCALE) ** 2;
+            // Частицы (дым и туман моста)
+            for (let i = 0; i < MAX_PARTICLES; i++) {
+                const p = particles[i];
+                if (!p.active) continue;
+                ctx.fillStyle = p.color + (p.life * 0.3) + ')';
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 6.2832); ctx.fill();
+            }
+
+            // Передний план леса (перекрывает края дороги для эффекта густоты)
             for (let i = 0; i < decorations.length; i++) {
                 const d = decorations[i];
-                if ((d.x - car.x)**2 + (d.y - car.y)**2 < viewD) drawTree(ctx, d.x, d.y, d.size, d.color);
+                if (d.layer === 'front' && (d.x - car.x)**2 + (d.y - car.y)**2 < viewD) {
+                    drawTree(ctx, d.x, d.y, d.size, d.color);
+                }
             }
 
             for (let i = 0; i < potholes.length; i++) {
                 const p = potholes[i];
-                if ((p.x - car.x)**2 + (p.y - car.y)**2 < viewD) drawPothole(ctx, p.x, p.y, p.size);
-            }
-
-            for (let i = 0; i < MAX_PARTICLES; i++) {
-                const p = particles[i];
-                if (!p.active) continue;
-                ctx.fillStyle = p.color + (p.life * 0.4) + ')';
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 6.2832); ctx.fill();
+                if ((p.x - car.x)**2 + (p.y - car.y)**2 < viewD) {
+                    drawPothole(ctx, p.x, p.y, p.size);
+                }
             }
 
             if (gameState === 'playing' || gameState === 'gameover') {
                 ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
                 const cw = car.width * SCALE, ch = car.height * SCALE;
                 
-                ctx.fillStyle = '#0e0e1a'; ctx.strokeStyle = boostTimer > 0 ? '#00f0ff' : '#5b8a9f'; 
-                ctx.lineWidth = 2 * SCALE;
+                ctx.fillStyle = '#0e0e1a'; ctx.strokeStyle = '#4affaa'; ctx.lineWidth = 2 * SCALE;
                 ctx.beginPath(); ctx.roundRect(-cw/2, -ch/2, cw, ch, 4*SCALE); ctx.fill(); ctx.stroke();
                 
                 ctx.fillStyle = '#d0e8ff';
@@ -651,9 +659,9 @@
 
                 ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
                 ctx.globalCompositeOperation = 'screen';
-                const beamLen = boostTimer > 0 ? 250 * SCALE : 180 * SCALE;
+                const beamLen = 180 * SCALE;
                 const grad = ctx.createLinearGradient(0, -ch/2, 0, -ch/2 - beamLen);
-                grad.addColorStop(0, boostTimer > 0 ? 'rgba(0, 240, 255, 0.5)' : 'rgba(220, 240, 255, 0.35)');
+                grad.addColorStop(0, 'rgba(220, 240, 255, 0.35)');
                 grad.addColorStop(0.4, 'rgba(150, 190, 230, 0.12)');
                 grad.addColorStop(1, 'rgba(100, 140, 180, 0)');
                 ctx.fillStyle = grad;
@@ -670,9 +678,9 @@
 
             const fogR = 450 * SCALE;
             const fg = ctx.createRadialGradient(width/2, height*0.7, 60*SCALE, width/2, height*0.7, fogR);
-            fg.addColorStop(0, 'rgba(5, 5, 16, 0)');
-            fg.addColorStop(0.5, 'rgba(5, 5, 16, 0.6)');
-            fg.addColorStop(1, 'rgba(5, 5, 16, 1)');
+            fg.addColorStop(0, 'rgba(2, 2, 10, 0)');
+            fg.addColorStop(0.5, 'rgba(2, 2, 10, 0.6)');
+            fg.addColorStop(1, 'rgba(2, 2, 10, 1)');
             ctx.fillStyle = fg; ctx.fillRect(0, 0, width, height);
         }
 
@@ -687,7 +695,7 @@
 
         function startGame() {
             gameState = 'playing';
-            score = 0; shake = 0; boostTimer = 0;
+            score = 0; shake = 0;
             particles.forEach(p => p.active = false);
             totalRaces++;
             setLS('races', totalRaces);
