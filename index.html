@@ -505,7 +505,6 @@
         }
 
         function draw() {
-            // Фон
             ctx.fillStyle = '#0a0a14';
             ctx.fillRect(0, 0, width, height);
 
@@ -516,7 +515,6 @@
             const shakeY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
             ctx.translate(camX + shakeX, camY + shakeY);
 
-            // ЕДИНЫЙ ПУТЬ ТРЕККА — без разбивки на сегменты!
             if (track.length > 1) {
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = '#5b4a7a';
@@ -548,7 +546,6 @@
                 ctx.setLineDash([]);
             }
 
-            // Частицы дыма
             particles.forEach(p => {
                 ctx.fillStyle = p.color + p.life * 0.35 + ')';
                 ctx.beginPath();
@@ -556,7 +553,6 @@
                 ctx.fill();
             });
 
-            // Машина
             if (gameState === 'playing' || gameState === 'gameover') {
                 ctx.save();
                 ctx.translate(car.x, car.y);
@@ -611,25 +607,8 @@
 
             ctx.restore();
 
-            // === ЭФФЕКТ ПЛАВНОГО ПОЯВЛЕНИЯ И ИСЧЕЗНОВЕНИЯ ===
-            // Создаём два градиентных оверлея: спереди и сзади
-
-            // Градиент СПЕРЕДИ (затемнение вперёд)
-            const frontFadeHeight = 300; // расстояние, на котором трасса проявляется
-            const frontGradient = ctx.createLinearGradient(
-                width / 2,
-                height * 0.75 - frontFadeHeight,
-                width / 2,
-                height * 0.75
-            );
-            frontGradient.addColorStop(0, 'rgba(10, 10, 20, 1)');
-            frontGradient.addColorStop(1, 'rgba(10, 10, 20, 0)');
-
-            ctx.fillStyle = frontGradient;
-            ctx.fillRect(0, 0, width, height);
-
-            // Градиент СЗАДИ (затемнение назад)
-            const backFadeHeight = 250; // расстояние, на котором трасса исчезает
+            // === ЭФФЕКТ ЗАТЕМНЕНИЯ СЗАДИ (как было) ===
+            const backFadeHeight = 250;
             const backGradient = ctx.createLinearGradient(
                 width / 2,
                 height * 0.75,
@@ -638,9 +617,34 @@
             );
             backGradient.addColorStop(0, 'rgba(10, 10, 20, 0)');
             backGradient.addColorStop(1, 'rgba(10, 10, 20, 0.9)');
-
             ctx.fillStyle = backGradient;
             ctx.fillRect(0, 0, width, height);
+
+            // === ЭФФЕКТ "ТУМАНА" СПЕРЕДИ НА ДОРОГЕ ===
+            // Рисуем конус тумана от машины вперёд
+            ctx.save();
+            ctx.translate(width / 2, height * 0.75);
+            ctx.rotate(car.angle);
+            
+            // Создаём радиальный градиент от машины
+            const fogDistance = 500; // расстояние тумана вперёд
+            const fogGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, fogDistance);
+            fogGradient.addColorStop(0, 'rgba(10, 10, 20, 0)');
+            fogGradient.addColorStop(0.3, 'rgba(10, 10, 20, 0)');
+            fogGradient.addColorStop(0.7, 'rgba(10, 10, 20, 0.4)');
+            fogGradient.addColorStop(1, 'rgba(10, 10, 20, 0.95)');
+            
+            // Рисуем трапецию (конус) от машины вперёд
+            ctx.fillStyle = fogGradient;
+            ctx.beginPath();
+            ctx.moveTo(-100, 0); // ширина у машины
+            ctx.lineTo(-400, -fogDistance); // ширина вдали
+            ctx.lineTo(400, -fogDistance);
+            ctx.lineTo(100, 0);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.restore();
         }
 
         function loop() {
