@@ -194,7 +194,7 @@
         let lastForkDistance = 0;
         let forkSwitched = false;
 
-        // ОПТИМИЗАЦИЯ: Кэшированные спрайты деревьев (рисуем 1 раз, используем 1000 раз)
+        // Кэшированные спрайты деревьев
         const treeSprites = [];
         function generateTreeSprites() {
             const colors = ['rgba(20, 60, 40, 0.95)', 'rgba(40, 20, 60, 0.95)', 'rgba(15, 25, 45, 0.95)'];
@@ -204,7 +204,6 @@
                 const cx = c.getContext('2d');
                 cx.fillStyle = colors[v];
                 cx.beginPath();
-                // Простой, но стильный силуэт
                 cx.moveTo(60, 10);
                 cx.lineTo(100, 70);
                 cx.lineTo(80, 70);
@@ -300,31 +299,27 @@
                 });
             }
 
-            // ИСПРАВЛЕНИЕ: Генерация дерева и ПРАВИЛЬНАЯ проверка коллизий
+            // ОПТИМИЗАЦИЯ: Снижена плотность деревьев (было 0.75, стало 0.35)
+            // и увеличен минимальный отступ от дороги для лучшей читаемости
             const side = Math.random() > 0.5 ? 1 : -1;
-            // Отступ от края дороги + случайный разброс
-            const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (15 * SCALE) + Math.random() * (150 * SCALE);
+            const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (25 * SCALE) + Math.random() * (180 * SCALE);
             const treeX = newX + Math.cos(currentTrackAngle) * dist * side;
             const treeY = newY + Math.sin(currentTrackAngle) * dist * side;
             const treeSize = (40 + Math.random() * 50) * SCALE;
 
             let canSpawnTree = true;
-            // Безопасная зона = половина ширины дороги + половина размера дерева + небольшой запас
             const safeMarginSq = ((BASE_TRACK_WIDTH * SCALE / 2) + (treeSize / 2) + (5 * SCALE)) ** 2;
             
-            // Проверяем только последние 30 сегментов (оптимизация)
             const checkLimit = Math.max(0, track.length - 30);
             for (let i = checkLimit; i < track.length; i++) {
                 const dx = treeX - track[i].x;
                 const dy = treeY - track[i].y;
-                // Используем квадрат расстояния вместо Math.hypot для огромного прироста скорости
                 if (dx * dx + dy * dy < safeMarginSq) {
                     canSpawnTree = false;
                     break;
                 }
             }
             
-            // Проверка развилки
             if (canSpawnTree && forkBranch.length > 0) {
                 for (let i = 0; i < forkBranch.length; i++) {
                     const dx = treeX - forkBranch[i].x;
@@ -336,12 +331,13 @@
                 }
             }
 
-            if (canSpawnTree && Math.random() < 0.75) {
+            // Шанс спавна снижен с 0.75 до 0.35 для значительного прироста FPS
+            if (canSpawnTree && Math.random() < 0.35) {
                 decorations.push({
                     x: treeX,
                     y: treeY,
                     size: treeSize,
-                    spriteIndex: Math.floor(Math.random() * 3), // Случайный спрайт из 3-х
+                    spriteIndex: Math.floor(Math.random() * 3),
                     layer: Math.random() > 0.4 ? 'back' : 'front'
                 });
             }
@@ -584,7 +580,6 @@
 
             const viewD = (600 * SCALE) ** 2;
             
-            // Задний план леса (ОПТИМИЗИРОВАННАЯ ОТРИСОВКА)
             for (let i = 0; i < decorations.length; i++) {
                 const d = decorations[i];
                 if (d.layer === 'back' && (d.x - car.x)**2 + (d.y - car.y)**2 < viewD) {
@@ -594,7 +589,6 @@
                 }
             }
 
-            // Частицы дыма
             for (let i = 0; i < MAX_PARTICLES; i++) {
                 const p = particles[i];
                 if (!p.active) continue;
@@ -602,7 +596,6 @@
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 6.2832); ctx.fill();
             }
 
-            // Передний план леса
             for (let i = 0; i < decorations.length; i++) {
                 const d = decorations[i];
                 if (d.layer === 'front' && (d.x - car.x)**2 + (d.y - car.y)**2 < viewD) {
@@ -623,7 +616,6 @@
                 ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
                 const cw = car.width * SCALE, ch = car.height * SCALE;
                 
-                // Обновленный дизайн машины (без изменения габаритов для совместимости света)
                 ctx.fillStyle = '#0e0e1a'; 
                 ctx.strokeStyle = '#5b8a9f'; 
                 ctx.lineWidth = 2 * SCALE;
@@ -631,11 +623,9 @@
                 ctx.roundRect(-cw/2, -ch/2, cw, ch, 5*SCALE); 
                 ctx.fill(); ctx.stroke();
                 
-                // Крыша/детали
                 ctx.fillStyle = 'rgba(91, 138, 159, 0.3)';
                 ctx.fillRect(-cw/2 + 4*SCALE, -ch/2 + 10*SCALE, cw - 8*SCALE, ch * 0.4);
                 
-                // Фары
                 ctx.fillStyle = '#d0e8ff';
                 ctx.shadowColor = '#d0e8ff';
                 ctx.shadowBlur = 10 * SCALE;
@@ -643,7 +633,6 @@
                 ctx.fillRect(cw/2 - 7*SCALE, -ch/2, 5*SCALE, 3*SCALE);
                 ctx.shadowBlur = 0;
                 
-                // Стопы
                 const br = car.driftFactor > 0.2 ? 1.0 : 0.4;
                 ctx.fillStyle = `rgba(200, 60, 80, ${br})`;
                 ctx.shadowColor = '#c83250';
@@ -653,7 +642,6 @@
                 ctx.shadowBlur = 0;
                 ctx.restore();
 
-                // Свет фар
                 ctx.save(); ctx.translate(car.x, car.y); ctx.rotate(car.angle);
                 ctx.globalCompositeOperation = 'screen';
                 const beamLen = 180 * SCALE;
