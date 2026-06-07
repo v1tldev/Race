@@ -26,7 +26,6 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            position: relative; /* Для z-index UI */
         }
 
         #gameCanvas {
@@ -228,27 +227,20 @@
         </div>
     </div>
 
-    <!-- Telegram Web App SDK -->
-    <script src="https://telegram.web.app/js/telegram-web-app.js"></script>
-
     <script>
-        // Инициализация Telegram Web App
-        window.Telegram.WebApp.ready();
-        window.Telegram.WebApp.expand();
-
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
         let width, height;
 
-        function resizeCanvas() {
+        function resize() {
             width = window.innerWidth;
             height = window.innerHeight;
             canvas.width = width;
             canvas.height = height;
         }
-        // Не добавляем resize, так как Telegram сам управляет размерами
-        resizeCanvas();
+        window.addEventListener('resize', resize);
+        resize();
 
         let gameState = 'menu';
         let score = 0;
@@ -259,17 +251,16 @@
 
         let track = [];
         const TRACK_WIDTH = 180;
-        const SEGMENT_LENGTH = 40; // Длина сегмента трассы в игровых единицах
-        let trackProgress = 0;      // Прогресс до смены поворота
-        let targetAngle = 0;        // Целевой угол поворота на сегменте
-        let currentTrackAngle = 0;    // Текущий угол трассы
+        const SEGMENT_LENGTH = 40;
+        let trackProgress = 0;
+        let targetAngle = 0;
+        let currentTrackAngle = 0;
 
         function initTrack() {
             track = [];
             trackProgress = 0;
             currentTrackAngle = 0;
             targetAngle = 0;
-            // Генерируем начальное количество сегментов, чтобы трасса была достаточно длинной
             for (let i = 0; i < 100; i++) {
                 addTrackSegment();
             }
@@ -279,30 +270,24 @@
             const lastPt = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
             trackProgress++;
 
-            // Определяем, когда менять направление трассы
-            // Случайное значение от 45 до 95 сегментов перед сменой поворота
             if (trackProgress > 45 + Math.floor(Math.random() * 50)) {
-                // Угол поворота от -1.2 до 1.2 радианов
                 targetAngle = (Math.random() - 0.5) * 2.4;
                 trackProgress = 0;
             }
 
-            // Плавно достигаем целевого угла
-            currentTrackAngle += (targetAngle - currentTrackAngle) * 0.08; // 0.08 - скорость сглаживания поворота
+            currentTrackAngle += (targetAngle - currentTrackAngle) * 0.08;
 
-            // Вычисляем новые координаты X и Y
             const newX = lastPt.x + Math.sin(currentTrackAngle) * SEGMENT_LENGTH;
-            const newY = lastPt.y - Math.cos(currentTrackAngle) * SEGMENT_LENGTH; // Y инвертировано для отрисовки "вперед"
+            const newY = lastPt.y - Math.cos(currentTrackAngle) * SEGMENT_LENGTH;
 
             track.push({
                 x: newX,
                 y: newY,
-                angle: currentTrackAngle // Сохраняем угол сегмента для ориентации машины
+                angle: currentTrackAngle
             });
 
-            // Ограничиваем длину трека, чтобы избежать переполнения памяти
             if (track.length > 500) {
-                track.shift(); // Удаляем самый старый сегмент
+                track.shift();
             }
         }
 
@@ -312,16 +297,16 @@
             width: 22,
             height: 40,
             angle: 0,
-            vx: 0, // Скорость по X
-            vy: 0, // Скорость по Y
-            baseSpeed: 6.5, // Базовая скорость машины
-            currentSpeed: 6.5, // Текущая скорость
-            driftFactor: 0 // Фактор дрифта (0 = нет, 1 = полный дрифт)
+            vx: 0,
+            vy: 0,
+            baseSpeed: 6.5,
+            currentSpeed: 6.5,
+            driftFactor: 0
         };
 
         let input = { left: false, right: false };
         let particles = [];
-        const MAX_PARTICLES = 200; // Максимальное количество частиц дыма
+        const MAX_PARTICLES = 200;
 
         const scoreEl = document.getElementById('score');
         const comboEl = document.getElementById('combo');
@@ -333,13 +318,12 @@
         const btnLeft = document.getElementById('btnLeft');
         const btnRight = document.getElementById('btnRight');
 
-        // Функции обработки ввода
         const handleStart = (side) => {
             if (gameState === 'menu' || gameState === 'gameover') {
                 startGame();
                 return;
             }
-            if (gameState !== 'playing') return; // Игнорируем ввод, если игра не в процессе
+            if (gameState !== 'playing') return;
             input[side] = true;
             if (side === 'left') btnLeft.classList.add('active');
             if (side === 'right') btnRight.classList.add('active');
@@ -351,12 +335,11 @@
             if (side === 'right') btnRight.classList.remove('active');
         };
 
-        // Обработчики касаний для кнопок управления
         btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart('left'); });
         btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleEnd('left'); });
         btnLeft.addEventListener('mousedown', () => handleStart('left'));
         btnLeft.addEventListener('mouseup', () => handleEnd('left'));
-        btnLeft.addEventListener('mouseleave', () => handleEnd('left')); // Обработка выхода мыши из зоны
+        btnLeft.addEventListener('mouseleave', () => handleEnd('left'));
 
         btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleStart('right'); });
         btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleEnd('right'); });
@@ -364,7 +347,6 @@
         btnRight.addEventListener('mouseup', () => handleEnd('right'));
         btnRight.addEventListener('mouseleave', () => handleEnd('right'));
 
-        // Обработчики клавиатуры
         window.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') handleStart('left');
             if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleStart('right');
@@ -374,7 +356,6 @@
             if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') handleEnd('right');
         });
 
-        // Игровые состояния
         function startGame() {
             gameState = 'playing';
             score = 0;
@@ -387,9 +368,8 @@
             btnLeft.classList.remove('active');
             btnRight.classList.remove('active');
 
-            initTrack(); // Инициализируем новую трассу
+            initTrack();
 
-            // Устанавливаем начальное положение машины
             car.x = track[20].x;
             car.y = track[20].y;
             car.angle = track[20].angle;
@@ -404,105 +384,51 @@
 
         function gameOver() {
             gameState = 'gameover';
-            finalScoreEl.innerText = 'СЧЕТ: ' + Math.floor(score).toLocaleString(); // Форматируем счет
+            finalScoreEl.innerText = 'СЧЕТ: ' + Math.floor(score).toLocaleString();
             gameoverScreen.classList.remove('hidden');
             hint.classList.add('hidden');
-            car.currentSpeed = 0; // Останавливаем машину
+            car.currentSpeed = 0;
             car.vx = 0;
             car.vy = 0;
-            particles = []; // Очищаем частицы
+            particles = [];
         }
 
-        // Функция спавна частиц дыма
         function spawnSmoke(x, y, angle, speedMultiplier) {
-            if (particles.length >= MAX_PARTICLES) return; // Ограничение на количество частиц
-            const spread = (Math.random() - 0.5) * 0.8; // Случайное отклонение в углах
-            const speed = (Math.random() * 2 + 1) * speedMultiplier; // Случайная скорость
+            if (particles.length >= MAX_PARTICLES) return;
+            const spread = (Math.random() - 0.5) * 0.8;
+            const speed = (Math.random() * 2 + 1) * speedMultiplier;
             particles.push({
                 x: x,
                 y: y,
-                vx: Math.sin(angle + spread) * speed + car.vx * 0.3, // Скорость частицы с учетом движения машины
+                vx: Math.sin(angle + spread) * speed + car.vx * 0.3,
                 vy: Math.cos(angle + spread) * speed + car.vy * 0.3,
-                life: 1.0, // Время жизни частицы
-                decay: 0.02 + Math.random() * 0.03, // Скорость затухания
-                size: Math.random() * 8 + 4, // Случайный размер
-                color: `rgba(150, 180, 210,` // Базовый цвет (альфа будет добавлена позже)
+                life: 1.0,
+                decay: 0.02 + Math.random() * 0.03,
+                size: Math.random() * 8 + 4,
+                color: `rgba(150, 180, 210,`
             });
         }
 
-        /**
-         * Вычисление прозрачности сегмента трассы на основе его расстояния от машины.
-         * @param {object} p1 - Начальная точка сегмента {x, y, angle}.
-         * @param {object} p2 - Конечная точка сегмента {x, y, angle}.
-         * @returns {number} Прозрачность от 0.0 до 1.0.
-         */
-        function getSegmentAlpha(p1, p2) {
-            // Находим центр сегмента
-            const mx = (p1.x + p2.x) / 2;
-            const my = (p1.y + p2.y) / 2;
-
-            // Вектор от машины до центра сегмента
-            const dx = mx - car.x;
-            const dy = my - car.y;
-
-            // Направление движения машины (вперед)
-            const fwdX = Math.sin(car.angle);
-            const fwdY = -Math.cos(car.angle);
-
-            // Проекция вектора (машина -> сегмент) на вектор направления машины
-            // Это даст нам расстояние "вдоль" движения машины
-            const forward = dx * fwdX + dy * fwdY;
-
-            let alpha = 1.0;
-            const fadeAhead = 450;  // Расстояние в игровых единицах, на котором дорога плавно появляется спереди.
-            const fadeBehind = 350; // Расстояние в игровых единицах, на котором дорога плавно исчезает сзади.
-
-            if (forward < 0) {
-                // Сегмент находится позади машины
-                const dist = -forward; // Расстояние позади
-                if (dist > fadeBehind) {
-                    alpha = 0; // Полностью невидимый, если слишком далеко позади
-                } else {
-                    // Плавное затухание
-                    const t = 1 - (dist / fadeBehind); // Коэффициент от 0 до 1
-                    alpha = t * t; // Применяем ease-in для более мягкого исчезновения
-                }
-            } else {
-                // Сегмент находится впереди машины
-                const dist = forward; // Расстояние впереди
-                if (dist < fadeAhead) {
-                    // Плавное появление
-                    const t = dist / fadeAhead; // Коэффициент от 0 до 1
-                    alpha = 1 - (1 - t) * (1 - t); // Применяем ease-out для более плавного появления
-                }
-                // Если dist >= fadeAhead, alpha остается 1.0 (полностью видимый)
-            }
-            return alpha;
-        }
-
         function update() {
-            if (gameState !== 'playing') return; // Обновляем только если игра идет
+            if (gameState !== 'playing') return;
             frame++;
 
-            // Проверяем, нужно ли добавлять новые сегменты трассы
             const lastTrackPoint = track[track.length - 1];
             const dxEnd = car.x - lastTrackPoint.x;
             const dyEnd = car.y - lastTrackPoint.y;
             const distToEnd = Math.sqrt(dxEnd * dxEnd + dyEnd * dyEnd);
 
             let addedThisFrame = 0;
-            // Добавляем сегменты, пока машина не будет достаточно далеко от конца трека
-            while (distToEnd < 400 && addedThisFrame < 10) { // 400 - примерное расстояние видимости
+            while (distToEnd < 400 && addedThisFrame < 10) {
                 addTrackSegment();
                 addedThisFrame++;
                 const newLast = track[track.length - 1];
                 const dx = car.x - newLast.x;
                 const dy = car.y - newLast.y;
                 const newDist = Math.sqrt(dx * dx + dy * dy);
-                if (newDist >= 400) break; // Прерываем, если уже достаточно далеко
+                if (newDist >= 400) break;
             }
 
-            // Проверка, не вылетела ли машина с трассы
             let minDist = Infinity;
             for (let i = 0; i < track.length; i++) {
                 const dx = car.x - track[i].x;
@@ -513,272 +439,219 @@
                 }
             }
 
-            const onTrack = minDist < (TRACK_WIDTH / 2); // Машина на трассе, если расстояние до ближайшего сегмента меньше половины ширины трассы
+            const onTrack = minDist < (TRACK_WIDTH / 2);
             if (!onTrack) {
                 gameOver();
                 return;
             }
 
-            // Обработка ввода (поворот машины)
             if (input.left) car.angle -= 0.05;
             if (input.right) car.angle += 0.05;
-            // Ограничиваем угол поворота, чтобы машина не крутилась на месте
-            car.angle = Math.max(-1.5, Math.min(1.5, car.angle)); // Ограничение угла поворота
+            car.angle = Math.max(-1.5, Math.min(1.5, car.angle));
 
-            // Обновление скорости и положения машины
             const targetVx = Math.sin(car.angle) * car.currentSpeed;
             const targetVy = -Math.cos(car.angle) * car.currentSpeed;
-            // Плавное сглаживание вектора скорости для эффекта дрифта
             const driftLag = 0.06 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
             car.vx += (targetVx - car.vx) * driftLag;
             car.vy += (targetVy - car.vy) * driftLag;
             car.x += car.vx;
             car.y += car.vy;
 
-            // Плавное увеличение скорости до базовой (если игрок не поворачивает)
             car.currentSpeed += (car.baseSpeed - car.currentSpeed) * 0.05;
 
-            // Вычисление текущего угла вектора скорости
             const velocityAngle = Math.atan2(car.vx, -car.vy);
-            // Расчет угла между желаемым направлением (car.angle) и фактическим движением (velocityAngle)
             const driftAngle = Math.abs(car.angle - velocityAngle);
             let normalizedDrift = driftAngle;
-            if (normalizedDrift > Math.PI) normalizedDrift = Math.PI * 2 - normalizedDrift; // Нормализация угла
+            if (normalizedDrift > Math.PI) normalizedDrift = Math.PI * 2 - normalizedDrift;
             car.driftFactor = normalizedDrift;
 
-            // Логика комбо и очков
-            if (normalizedDrift > 0.15 && onTrack) { // Если дрифт достаточно сильный и машина на трассе
-                comboTimer = 60; // Сбрасываем таймер комбо
-                combo = Math.min(combo + 0.015, 5.0); // Увеличиваем комбо, не более 5x
-                score += Math.floor(normalizedDrift * 15 * combo); // Начисляем очки
+            if (normalizedDrift > 0.15 && onTrack) {
+                comboTimer = 60;
+                combo = Math.min(combo + 0.015, 5.0);
+                score += Math.floor(normalizedDrift * 15 * combo);
 
-                // Спавним частицы дыма при дрифте
                 const cos = Math.cos(car.angle);
                 const sin = Math.sin(car.angle);
-                const rearX = car.x - sin * 18; // Позиция задних колес
+                const rearX = car.x - sin * 18;
                 const rearY = car.y + cos * 18;
-                spawnSmoke(rearX - 8, rearY, car.angle, 1.5); // Дым из левого заднего колеса
-                spawnSmoke(rearX + 8, rearY, car.angle, 1.5); // Дым из правого заднего колеса
+                spawnSmoke(rearX - 8, rearY, car.angle, 1.5);
+                spawnSmoke(rearX + 8, rearY, car.angle, 1.5);
 
-                if (combo > 2.5 && Math.random() > 0.8) shake = 2; // Шейк камеры при высоком комбо
+                if (combo > 2.5 && Math.random() > 0.8) shake = 2;
             } else {
-                comboTimer--; // Уменьшаем таймер комбо
-                if (comboTimer <= 0) combo = 1.0; // Сбрасываем комбо, если таймер истек
+                comboTimer--;
+                if (comboTimer <= 0) combo = 1.0;
             }
 
-            scoreEl.innerText = Math.floor(score).toLocaleString(); // Обновляем отображение счета
-            if (combo > 1.2) { // Если комбо больше 1.2, показываем его
+            scoreEl.innerText = Math.floor(score).toLocaleString();
+            if (combo > 1.2) {
                 comboBox.classList.add('active');
-                comboEl.innerText = 'x' + combo.toFixed(1); // Форматируем комбо
+                comboEl.innerText = 'x' + combo.toFixed(1);
             } else {
-                comboBox.classList.remove('active'); // Скрываем, если комбо 1.0
+                comboBox.classList.remove('active');
             }
 
-            // Обновляем частицы дыма
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.vx;
                 p.y += p.vy;
                 p.life -= p.decay;
-                p.size += 0.4; // Частицы постепенно увеличиваются
-                if (p.life <= 0) particles.splice(i, 1); // Удаляем, если время жизни истекло
+                p.size += 0.4;
+                if (p.life <= 0) particles.splice(i, 1);
             }
 
-            // Сброс тряски камеры
             if (shake > 0) shake *= 0.9;
             if (shake < 0.5) shake = 0;
         }
 
         function draw() {
-            // Очистка холста с легким градиентом
-            ctx.fillStyle = 'rgba(10, 10, 20, 0.7)';
+            // Фон
+            ctx.fillStyle = '#0a0a14';
             ctx.fillRect(0, 0, width, height);
 
-            ctx.save(); // Сохраняем состояние контекста перед применением камеры
-
-            // Настройка камеры: центрируем машину с небольшим смещением вверх (эффект "взгляда вперед")
+            ctx.save();
             const camX = width / 2 - car.x;
-            const camY = (height * 0.75) - car.y; // 0.75 - смещение камеры к нижней части экрана
-
-            // Добавляем тряску камеры
+            const camY = (height * 0.75) - car.y;
             const shakeX = shake > 0 ? (Math.random() - 0.5) * shake : 0;
             const shakeY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
-            ctx.translate(camX + shakeX, camY + shakeY); // Применяем трансформацию камеры
+            ctx.translate(camX + shakeX, camY + shakeY);
 
+            // ЕДИНЫЙ ПУТЬ ТРЕККА — без разбивки на сегменты!
             if (track.length > 1) {
-                // Оптимизация: рисуем только сегменты трассы, которые попадают в зону видимости
-                const viewPadding = 300; // Дополнительный отступ для видимых сегментов
-                const viewLeft = car.x - width / 2 - viewPadding;
-                const viewRight = car.x + width / 2 + viewPadding;
-                const viewTop = car.y - height - viewPadding; // Камера смотрит "вперед", поэтому Y увеличивается при движении
-                const viewBottom = car.y + height * 0.25 + viewPadding;
-
-                ctx.lineCap = 'round'; // Скругленные концы линий
-                ctx.lineJoin = 'round'; // Скругленные углы соединений
-
-                let dashOffset = 0; // Смещение для пунктирной линии
-                for (let i = 0; i < track.length - 1; i++) {
-                    const p1 = track[i];
-                    const p2 = track[i + 1];
-
-                    const dx = p2.x - p1.x;
-                    const dy = p2.y - p1.y;
-                    const segLen = Math.sqrt(dx * dx + dy * dy);
-
-                    // Проверка, находится ли сегмент в зоне видимости
-                    const minX = Math.min(p1.x, p2.x);
-                    const maxX = Math.max(p1.x, p2.x);
-                    const minY = Math.min(p1.y, p2.y);
-                    const maxY = Math.max(p1.y, p2.y);
-
-                    if (maxX < viewLeft || minX > viewRight || maxY < viewTop || minY > viewBottom) {
-                        dashOffset += segLen; // Учитываем длину невидимого сегмента для смещения тире
-                        continue; // Пропускаем отрисовку, если сегмент не виден
-                    }
-
-                    // Получаем прозрачность сегмента
-                    const alpha = getSegmentAlpha(p1, p2);
-                    if (alpha < 0.01) { // Если прозрачность почти нулевая, пропускаем
-                        dashOffset += segLen;
-                        continue;
-                    }
-
-                    // Отрисовка сегмента трассы (слоями для эффекта)
-                    // 1. Внешнее свечение (glow)
-                    ctx.strokeStyle = `rgba(91, 74, 122, ${alpha * 0.4})`; // Фиолетовое свечение
-                    ctx.lineWidth = TRACK_WIDTH + 24; // Толщина больше ширины трассы
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.stroke();
-
-                    // 2. Основной край трассы
-                    ctx.strokeStyle = `rgba(106, 91, 138, ${alpha})`; // Основной фиолетовый цвет
-                    ctx.lineWidth = TRACK_WIDTH; // Ширина трассы
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.stroke();
-
-                    // 3. Внутреннее покрытие (темная полоса)
-                    ctx.strokeStyle = `rgba(28, 28, 46, ${alpha})`; // Темный внутренний цвет
-                    ctx.lineWidth = TRACK_WIDTH - 8; // Ширина меньше основной
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.stroke();
-
-                    // 4. Центральная пунктирная разметка
-                    ctx.strokeStyle = `rgba(110, 140, 170, ${alpha * 0.35})`; // Светло-синяя разметка
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([20, 30]); // Длина тире и промежутка
-                    ctx.lineDashOffset = -dashOffset; // Применяем смещение для создания эффекта непрерывной пунктирной линии
-                    ctx.beginPath();
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                    ctx.stroke();
-
-                    dashOffset += segLen; // Добавляем длину текущего сегмента к общему смещению
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = '#5b4a7a';
+                ctx.strokeStyle = '#6a5b8a';
+                ctx.lineWidth = TRACK_WIDTH;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(track[0].x, track[0].y);
+                for (let i = 1; i < track.length; i++) {
+                    ctx.lineTo(track[i].x, track[i].y);
                 }
-                ctx.setLineDash([]); // Сбрасываем стиль пунктирной линии
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#1c1c2e';
+                ctx.lineWidth = TRACK_WIDTH - 8;
+                ctx.stroke();
+
+                ctx.strokeStyle = 'rgba(110, 140, 170, 0.35)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([20, 30]);
+                ctx.beginPath();
+                ctx.moveTo(track[0].x, track[0].y);
+                for (let i = 1; i < track.length; i++) {
+                    ctx.lineTo(track[i].x, track[i].y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
             }
 
-            // Отрисовка частиц дыма
+            // Частицы дыма
             particles.forEach(p => {
-                // Проверка положения частицы относительно машины для возможного затемнения
-                const dx = p.x - car.x;
-                const dy = p.y - car.y;
-                const fwdX = Math.sin(car.angle);
-                const fwdY = -Math.cos(car.angle);
-                const forward = dx * fwdX + dy * fwdY; // Проекция на направление движения машины
-
-                let particleAlpha = 1.0;
-                // Частицы, находящиеся далеко позади машины, становятся менее заметными
-                if (forward < -200) { // Порог расстояния позади
-                    particleAlpha = Math.max(0, 1 - (-forward - 200) / 300); // Плавное затухание
-                }
-
-                // Задаем цвет частицы с учетом ее времени жизни и положения
-                ctx.fillStyle = p.color + (p.life * 0.35 * particleAlpha) + ')';
+                ctx.fillStyle = p.color + p.life * 0.35 + ')';
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); // Отрисовка частицы как круга
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
                 ctx.fill();
             });
 
-            // Отрисовка машины (только если игра играет или только что закончилась)
+            // Машина
             if (gameState === 'playing' || gameState === 'gameover') {
-                ctx.save(); // Сохраняем состояние для трансформации машины
-                ctx.translate(car.x, car.y); // Перемещаем начало координат в центр машины
-                ctx.rotate(car.angle); // Поворачиваем контекст согласно углу машины
+                ctx.save();
+                ctx.translate(car.x, car.y);
+                ctx.rotate(car.angle);
 
-                // Тело машины
                 ctx.shadowBlur = 8;
-                ctx.shadowColor = '#5b8a9f'; // Тень сине-фиолетовая
-                ctx.fillStyle = '#0e0e1a'; // Темно-синий корпус
-                ctx.strokeStyle = '#5b8a9f'; // Обводка корпуса
+                ctx.shadowColor = '#5b8a9f';
+                ctx.fillStyle = '#0e0e1a';
+                ctx.strokeStyle = '#5b8a9f';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.roundRect(-car.width / 2, -car.height / 2, car.width, car.height, 5); // Округлое тело машины
+                ctx.roundRect(-car.width / 2, -car.height / 2, car.width, car.height, 5);
                 ctx.fill();
                 ctx.stroke();
 
-                // Детали корпуса (например, полосы)
                 ctx.fillStyle = '#5b8a9f';
-                ctx.globalAlpha = 0.4; // Полупрозрачность
-                ctx.fillRect(-car.width / 2 + 3, -car.height / 2 + 8, car.width - 6, 10); // Горизонтальная полоса
-                ctx.globalAlpha = 1.0; // Возвращаем полную непрозрачность
+                ctx.globalAlpha = 0.4;
+                ctx.fillRect(-car.width / 2 + 3, -car.height / 2 + 8, car.width - 6, 10);
+                ctx.globalAlpha = 1.0;
 
-                // Фары
-                ctx.fillStyle = '#d0e8ff'; // Светло-голубой свет фар
+                ctx.fillStyle = '#d0e8ff';
                 ctx.shadowColor = '#d0e8ff';
                 ctx.shadowBlur = 14;
-                ctx.fillRect(-car.width / 2 + 2, -car.height / 2, 5, 3); // Левая фара
-                ctx.fillRect(car.width / 2 - 7, -car.height / 2, 5, 3); // Правая фара
+                ctx.fillRect(-car.width / 2 + 2, -car.height / 2, 5, 3);
+                ctx.fillRect(car.width / 2 - 7, -car.height / 2, 5, 3);
 
-                // Эффект тормозов (при дрифте)
-                const brakeIntensity = car.driftFactor > 0.2 ? 1.0 : 0.4; // Интенсивность тормозов зависит от дрифта
-                ctx.fillStyle = `rgba(200, 60, 80, ${brakeIntensity})`; // Красный цвет тормозных огней
-                ctx.shadowColor = '#c83250'; // Тень тормозных огней
+                const brakeIntensity = car.driftFactor > 0.2 ? 1.0 : 0.4;
+                ctx.fillStyle = `rgba(200, 60, 80, ${brakeIntensity})`;
+                ctx.shadowColor = '#c83250';
                 ctx.shadowBlur = 10 * brakeIntensity;
-                ctx.fillRect(-car.width / 2 + 2, car.height / 2 - 3, 7, 3); // Левый тормоз
-                ctx.fillRect(car.width / 2 - 9, car.height / 2 - 3, 7, 3); // Правый тормоз
+                ctx.fillRect(-car.width / 2 + 2, car.height / 2 - 3, 7, 3);
+                ctx.fillRect(car.width / 2 - 9, car.height / 2 - 3, 7, 3);
 
-                ctx.restore(); // Восстанавливаем состояние контекста (отменяем трансформации машины)
+                ctx.restore();
 
-                // Отрисовка лучей фар с использованием смешанного режима
                 ctx.save();
-                ctx.translate(car.x, car.y); // Перемещаем начало координат в центр машины
-                ctx.rotate(car.angle);       // Поворачиваем
-                ctx.globalCompositeOperation = 'screen'; // Режим смешивания 'screen' создает эффект свечения
-                const beamGrad = ctx.createLinearGradient(0, -car.height / 2, 0, -car.height / 2 - 160); // Градиент для луча
-                beamGrad.addColorStop(0, 'rgba(100, 140, 180, 0.2)'); // Начало градиента (светлое)
-                beamGrad.addColorStop(1, 'rgba(100, 140, 180, 0)');    // Конец градиента (прозрачное)
+                ctx.translate(car.x, car.y);
+                ctx.rotate(car.angle);
+                ctx.globalCompositeOperation = 'screen';
+                const beamGrad = ctx.createLinearGradient(0, -car.height / 2, 0, -car.height / 2 - 160);
+                beamGrad.addColorStop(0, 'rgba(100, 140, 180, 0.2)');
+                beamGrad.addColorStop(1, 'rgba(100, 140, 180, 0)');
                 ctx.fillStyle = beamGrad;
-                // Отрисовка "треугольника" луча фары
                 ctx.beginPath();
-                ctx.moveTo(-car.width / 2 + 4, -car.height / 2); // Верхний левый угол
-                ctx.lineTo(-car.width - 15, -car.height / 2 - 160); // Отдаленная точка луча слева
-                ctx.lineTo(car.width + 15, -car.height / 2 - 160);  // Отдаленная точка луча справа
-                ctx.lineTo(car.width / 2 - 4, -car.height / 2);   // Верхний правый угол
+                ctx.moveTo(-car.width / 2 + 4, -car.height / 2);
+                ctx.lineTo(-car.width - 15, -car.height / 2 - 160);
+                ctx.lineTo(car.width + 15, -car.height / 2 - 160);
+                ctx.lineTo(car.width / 2 - 4, -car.height / 2);
                 ctx.fill();
-                ctx.restore(); // Восстанавливаем состояние (отменяем трансформации)
+                ctx.restore();
             }
 
-            ctx.restore(); // Восстанавливаем состояние контекста (отменяем трансформацию камеры)
+            ctx.restore();
+
+            // === ЭФФЕКТ ПЛАВНОГО ПОЯВЛЕНИЯ И ИСЧЕЗНОВЕНИЯ ===
+            // Создаём два градиентных оверлея: спереди и сзади
+
+            // Градиент СПЕРЕДИ (затемнение вперёд)
+            const frontFadeHeight = 300; // расстояние, на котором трасса проявляется
+            const frontGradient = ctx.createLinearGradient(
+                width / 2,
+                height * 0.75 - frontFadeHeight,
+                width / 2,
+                height * 0.75
+            );
+            frontGradient.addColorStop(0, 'rgba(10, 10, 20, 1)');
+            frontGradient.addColorStop(1, 'rgba(10, 10, 20, 0)');
+
+            ctx.fillStyle = frontGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // Градиент СЗАДИ (затемнение назад)
+            const backFadeHeight = 250; // расстояние, на котором трасса исчезает
+            const backGradient = ctx.createLinearGradient(
+                width / 2,
+                height * 0.75,
+                width / 2,
+                height * 0.75 + backFadeHeight
+            );
+            backGradient.addColorStop(0, 'rgba(10, 10, 20, 0)');
+            backGradient.addColorStop(1, 'rgba(10, 10, 20, 0.9)');
+
+            ctx.fillStyle = backGradient;
+            ctx.fillRect(0, 0, width, height);
         }
 
-        // Основной игровой цикл
         function loop() {
-            update(); // Обновляем состояние игры
-            draw();   // Отрисовываем все на холсте
-            requestAnimationFrame(loop); // Запрашиваем следующий кадр анимации
+            update();
+            draw();
+            requestAnimationFrame(loop);
         }
 
-        // Запуск игры
-        initTrack(); // Инициализируем начальную трассу
-        loop();      // Запускаем основной цикл
+        initTrack();
+        loop();
 
-        // Блокировка скролла и жестов на всем окне, чтобы не мешали игре
         document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
         document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
     </script>
