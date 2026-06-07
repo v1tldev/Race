@@ -185,17 +185,16 @@
         let gameState = 'menu';
         let score = 0, distance = 0, frame = 0, shake = 0, lastTime = 0;
         
-        // Основной массив трассы и массив для "отброшенной" ветки развилки
         let track = [], altTrack = []; 
         let decorations = [], potholes = [];
         
         const BASE_TRACK_WIDTH = 160, BASE_SEGMENT_LENGTH = 35;
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
-        
-        // Исправленный счетчик для ям (не зависит от splice массива)
         let segmentsSincePothole = 0; 
-        let nextForkDistance = 600; // Дистанция до следующей развилки
-        let isForkActive = false;
+        let nextForkDistance = 800; 
+        
+        // НОВАЯ ПЕРЕМЕННАЯ ДЛЯ РАЗВИЛКИ
+        let forkSegmentsRemaining = 0;
 
         const MAX_PARTICLES = 150;
         const particles = Array.from({ length: MAX_PARTICLES }, () => ({
@@ -246,8 +245,8 @@
             track = []; altTrack = []; decorations = []; potholes = []; 
             trackProgress = 0; currentTrackAngle = 0; targetAngle = 0;
             segmentsSincePothole = 0;
-            nextForkDistance = 600;
-            isForkActive = false;
+            nextForkDistance = 800;
+            forkSegmentsRemaining = 0;
             
             for (let i = 0; i < 100; i++) addTrackSegment();
             
@@ -263,19 +262,17 @@
             const last = track.length > 0 ? track[track.length - 1] : { x: 0, y: 0, angle: 0 };
             trackProgress++;
             
-            // Более резкие и частые повороты
             if (trackProgress > 30 + Math.floor(Math.random() * 35)) {
-                targetAngle = (Math.random() - 0.5) * 3.2; // Увеличен максимальный угол
+                targetAngle = (Math.random() - 0.5) * 3.2;
                 trackProgress = 0;
             }
-            currentTrackAngle += (targetAngle - currentTrackAngle) * 0.12; // Более резкая реакция
+            currentTrackAngle += (targetAngle - currentTrackAngle) * 0.12;
             
             const segLen = BASE_SEGMENT_LENGTH * SCALE;
             const newX = last.x + Math.sin(currentTrackAngle) * segLen;
             const newY = last.y - Math.cos(currentTrackAngle) * segLen;
             track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
-            // Логика ям (теперь работает бесконечно)
             segmentsSincePothole++;
             if (track.length > 25 && segmentsSincePothole > 12 && Math.random() < 0.04) {
                 segmentsSincePothole = 0;
@@ -286,7 +283,6 @@
                 potholes.push({ x: newX + perpX, y: newY + perpY, size: 15 * SCALE, active: true });
             }
 
-            // Декорации
             if (Math.random() < 0.5) {
                 const side = Math.random() > 0.5 ? 1 : -1;
                 const dist = (BASE_TRACK_WIDTH * SCALE / 2) + (50 * SCALE) + Math.random() * (350 * SCALE);
@@ -297,6 +293,23 @@
                     color: `rgba(${4 + Math.random()*8}, ${4 + Math.random()*8}, ${14 + Math.random()*12}, 1)`,
                     layer: Math.random() > 0.5 ? 'back' : 'front'
                 });
+            }
+
+            // ЛОГИКА РАЗВИЛКИ (ИСПРАВЛЕННАЯ)
+            if (forkSegmentsRemaining > 0) {
+                forkSegmentsRemaining--;
+                // Генерируем альтернативную ветку, пока идет развилка
+                const forkLast = altTrack.length > 0 ? altTrack[altTrack.length - 1] : last;
+                // Плавное расхождение веток
+                const forkAngle = currentTrackAngle + (0.15 * (40 - forkSegmentsRemaining) * (Math.random() > 0.5 ? 1 : -1));
+                const fx = forkLast.x + Math.sin(forkAngle) * segLen;
+                const fy = forkLast.y - Math.cos(forkAngle) * segLen;
+                altTrack.push({ x: fx, y: fy, angle: forkAngle });
+            } else if (distance > nextForkDistance && altTrack.length === 0) {
+                // Инициализация новой развилки
+                forkSegmentsRemaining = 40; // Даем 40 сегментов на выбор (~2 секунды)
+                altTrack = [{ x: last.x, y: last.y, angle: currentTrackAngle }];
+                nextForkDistance = distance + 800 + Math.random() * 400;
             }
 
             // Очистка старых данных
@@ -347,48 +360,26 @@
             const last = track[track.length - 1];
             if (Math.hypot(car.x - last.x, car.y - last.y) < 800 * SCALE) {
                 addTrackSegment();
+            }
+
+            // ПРОВЕРКА ВЫБОРА РАЗВИЛКИ
+            if (altTrack.length > 0 && forkSegmentsRemaining <= 0) {
+                const forkCenter = altTrack[Math.floor(altTrack.length / 2)];
+                const distToAlt = Math.hypot(car.x - forkCenter.x, car.y - forkCenter.y);
+                const distToMain = Math.hypot(car.x - last.x, car.y - last.y);
                 
-                // ЛОГИКА РАЗВИЛКИ
-                if (!isForkActive && distance > nextForkDistance) {
-                    isForkActive = true;
-                    // Создаем "альтернативную" ветку, которая уходит в противоположную сторону
+                // Если игрок заехал на альтернативную ветку
+                if (distToAlt < distToMain && distToAlt < 120 * SCALE) {
+                    track = altTrack;
                     altTrack = [];
-                    let forkLast = track[track.length - 1];
-                    let forkAngle = currentTrackAngle + (Math.random() > 0.5 ? 1.2 : -1.2); // Резкий поворот
-                    
-                    for(let i=0; i<30; i++) {
-                        forkAngle += (Math.random() - 0.5) * 0.5;
-                        const fx = forkLast.x + Math.sin(forkAngle) * (BASE_SEGMENT_LENGTH * SCALE);
-                        const fy = forkLast.y - Math.cos(forkAngle) * (BASE_SEGMENT_LENGTH * SCALE);
-                        altTrack.push({ x: fx, y: fy, angle: forkAngle });
-                        forkLast = { x: fx, y: fy, angle: forkAngle };
-                    }
-                }
-                
-                // Если развилка была, проверяем, какую ветку выбрал игрок
-                if (isForkActive && altTrack.length > 0) {
-                    const forkCenter = altTrack[0];
-                    // Если игрок уехал далеко в сторону альтернативной ветки, она становится основной
-                    const distToAlt = Math.hypot(car.x - forkCenter.x, car.y - forkCenter.y);
-                    const distToMain = Math.hypot(car.x - last.x, car.y - last.y);
-                    
-                    if (distToAlt < distToMain && distToAlt < 150 * SCALE) {
-                        // Игрок выбрал альтернативную ветку!
-                        track = altTrack;
-                        altTrack = []; // Очищаем старую, она больше не нужна
-                        isForkActive = false;
-                        nextForkDistance = distance + 600 + Math.random() * 400;
-                        vibrate('medium');
-                    } else if (track.length > 100) {
-                        // Игрок остался на главной ветке, альтернативная отмирает
-                        altTrack = [];
-                        isForkActive = false;
-                        nextForkDistance = distance + 600 + Math.random() * 400;
-                    }
+                    vibrate('medium');
+                } else {
+                    // Игрок проигнорировал развилку, удаляем её
+                    altTrack = [];
                 }
             }
 
-            // Проверка столкновений (проверяем и основную, и альтернативную ветку, если она есть)
+            // Проверка столкновений с дорогой
             let minDist = Infinity;
             const checkArrays = [track];
             if (altTrack.length > 0) checkArrays.push(altTrack);
@@ -412,17 +403,20 @@
                 const dist = Math.hypot(car.x - p.x, car.y - p.y);
                 if (dist < (p.size + 8 * SCALE)) {
                     p.active = false;
-                    car.angle += (Math.random() > 0.5 ? 1 : -1) * 0.35; 
-                    car.skidTime = 35; 
-                    car.currentSpeed *= 0.92;
-                    shake = 4 * SCALE;
+                    // УЛУЧШЕННЫЙ ЗАНOS: добавляем инерцию вращения
+                    const skidDir = Math.random() > 0.5 ? 1 : -1;
+                    car.angle += skidDir * 0.4; 
+                    car.skidTime = 40; 
+                    car.currentSpeed *= 0.9;
+                    shake = 5 * SCALE;
                     vibrate('heavy');
                 }
             }
 
-            if (input.left) car.angle -= 0.06 * dt;
-            if (input.right) car.angle += 0.06 * dt;
-            car.angle = Math.max(-1.4, Math.min(1.4, car.angle));
+            // УПРАВЛЕНИЕ (БЕЗ ЖЕСТКИХ ОГРАНИЧЕНИЙ УГЛА!)
+            if (input.left) car.angle -= 0.065 * dt;
+            if (input.right) car.angle += 0.065 * dt;
+            // Убрали Math.max/min, теперь руль крутится на 360 градусов!
 
             const tVx = Math.sin(car.angle) * car.currentSpeed;
             const tVy = -Math.cos(car.angle) * car.currentSpeed;
@@ -430,7 +424,7 @@
             let currentLag = 0.07 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
             if (car.skidTime > 0) {
                 car.skidTime -= dt;
-                currentLag = 0.015;
+                currentLag = 0.015; // Ватное управление во время заноса
             }
             
             car.vx += (tVx - car.vx) * currentLag * dt;
@@ -483,12 +477,9 @@
 
             const tw = BASE_TRACK_WIDTH * SCALE;
 
-            // Функция отрисовки массива трассы
             const drawPath = (pathArr, isAlt) => {
                 if (pathArr.length < 2) return;
                 const startIdx = Math.max(0, pathArr.length - 120);
-                
-                // Если это альтернативная ветка, делаем её чуть тусклее, чтобы показать, что она "второстепенная"
                 const alpha = isAlt ? 0.3 : 0.5;
                 const color = isAlt ? '#4a3b5a' : '#6a5b8a';
 
@@ -508,6 +499,18 @@
 
             drawPath(track, false);
             if (altTrack.length > 0) drawPath(altTrack, true);
+
+            // Отрисовка маркера развилки (неоновый столб)
+            if (forkSegmentsRemaining > 0 && altTrack.length > 0) {
+                const marker = altTrack[Math.floor(altTrack.length / 2)];
+                ctx.fillStyle = 'rgba(200, 120, 144, 0.8)';
+                ctx.shadowBlur = 15 * SCALE;
+                ctx.shadowColor = '#c87890';
+                ctx.beginPath();
+                ctx.arc(marker.x, marker.y, 8 * SCALE, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
 
             const viewD = (600 * SCALE) ** 2;
             
