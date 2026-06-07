@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Drift: Track Edition</title>
+    <title>Neon Drift: Forest Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         * {
@@ -17,7 +17,7 @@
         }
 
         body {
-            background: #0a0a14;
+            background: #050510;
             color: #e0e0ff;
             font-family: 'Orbitron', sans-serif;
             overflow: hidden;
@@ -163,17 +163,9 @@
             display: flex;
         }
 
-        .touch-left,
-        .touch-right {
-            flex: 1;
-        }
-
-        .touch-left.active {
-            background: rgba(100, 140, 180, 0.05);
-        }
-        .touch-right.active {
-            background: rgba(138, 107, 176, 0.05);
-        }
+        .touch-left, .touch-right { flex: 1; }
+        .touch-left.active { background: rgba(100, 140, 180, 0.05); }
+        .touch-right.active { background: rgba(138, 107, 176, 0.05); }
 
         @keyframes pulse {
             from { transform: scale(1); }
@@ -181,14 +173,11 @@
         }
 
         @keyframes blink {
-            0%,
-            100% { opacity: 1; }
+            0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
         }
 
-        .hidden {
-            display: none !important;
-        }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -256,8 +245,12 @@
         let targetAngle = 0;
         let currentTrackAngle = 0;
 
+        // Массив для декораций (деревья)
+        let decorations = [];
+
         function initTrack() {
             track = [];
+            decorations = [];
             trackProgress = 0;
             currentTrackAngle = 0;
             targetAngle = 0;
@@ -280,28 +273,43 @@
             const newX = lastPt.x + Math.sin(currentTrackAngle) * SEGMENT_LENGTH;
             const newY = lastPt.y - Math.cos(currentTrackAngle) * SEGMENT_LENGTH;
 
-            track.push({
-                x: newX,
-                y: newY,
-                angle: currentTrackAngle
-            });
+            track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
-            if (track.length > 500) {
+            // Генерация декораций (деревьев) вдоль трассы
+            if (Math.random() < 0.4) { // 40% шанс на дерево у каждого сегмента
+                const side = Math.random() > 0.5 ? 1 : -1; // Слева или справа
+                // Расстояние от центра трассы: половина ширины + отступ + случайный разброс
+                const dist = (TRACK_WIDTH / 2) + 40 + Math.random() * 250;
+                
+                // Перпендикулярный вектор для смещения
+                const perpX = Math.cos(currentTrackAngle) * dist * side;
+                const perpY = Math.sin(currentTrackAngle) * dist * side;
+
+                decorations.push({
+                    x: newX + perpX,
+                    y: newY + perpY,
+                    size: 15 + Math.random() * 35,
+                    // Цвета: тёмно-зелёный или тёмно-фиолетовый неон
+                    baseColor: Math.random() > 0.5 ? '#0f3a2a' : '#2a0f3a',
+                    // Иногда дерево ярко светится (неоновый акцент)
+                    glowColor: Math.random() > 0.85 ? (side > 0 ? '#4affaa' : '#aa4aff') : 'transparent',
+                    type: Math.random() > 0.5 ? 'pine' : 'round'
+                });
+            }
+
+            if (track.length > 600) {
                 track.shift();
+                // Удаляем старые декорации, которые остались далеко позади
+                decorations = decorations.filter(d => {
+                    const dy = d.y - track[0].y; 
+                    return dy < 1000; // Оставляем только те, что не слишком далеко сзади
+                });
             }
         }
 
         const car = {
-            x: 0,
-            y: 0,
-            width: 22,
-            height: 40,
-            angle: 0,
-            vx: 0,
-            vy: 0,
-            baseSpeed: 6.5,
-            currentSpeed: 6.5,
-            driftFactor: 0
+            x: 0, y: 0, width: 22, height: 40, angle: 0,
+            vx: 0, vy: 0, baseSpeed: 6.5, currentSpeed: 6.5, driftFactor: 0
         };
 
         let input = { left: false, right: false };
@@ -319,10 +327,7 @@
         const btnRight = document.getElementById('btnRight');
 
         const handleStart = (side) => {
-            if (gameState === 'menu' || gameState === 'gameover') {
-                startGame();
-                return;
-            }
+            if (gameState === 'menu' || gameState === 'gameover') { startGame(); return; }
             if (gameState !== 'playing') return;
             input[side] = true;
             if (side === 'left') btnLeft.classList.add('active');
@@ -358,16 +363,9 @@
 
         function startGame() {
             gameState = 'playing';
-            score = 0;
-            combo = 1.0;
-            comboTimer = 0;
-            shake = 0;
-            particles = [];
-            input.left = false;
-            input.right = false;
-            btnLeft.classList.remove('active');
-            btnRight.classList.remove('active');
-
+            score = 0; combo = 1.0; comboTimer = 0; shake = 0; particles = [];
+            input.left = false; input.right = false;
+            btnLeft.classList.remove('active'); btnRight.classList.remove('active');
             initTrack();
 
             car.x = track[20].x;
@@ -387,10 +385,7 @@
             finalScoreEl.innerText = 'СЧЕТ: ' + Math.floor(score).toLocaleString();
             gameoverScreen.classList.remove('hidden');
             hint.classList.add('hidden');
-            car.currentSpeed = 0;
-            car.vx = 0;
-            car.vy = 0;
-            particles = [];
+            car.currentSpeed = 0; car.vx = 0; car.vy = 0; particles = [];
         }
 
         function spawnSmoke(x, y, angle, speedMultiplier) {
@@ -398,14 +393,11 @@
             const spread = (Math.random() - 0.5) * 0.8;
             const speed = (Math.random() * 2 + 1) * speedMultiplier;
             particles.push({
-                x: x,
-                y: y,
+                x: x, y: y,
                 vx: Math.sin(angle + spread) * speed + car.vx * 0.3,
                 vy: Math.cos(angle + spread) * speed + car.vy * 0.3,
-                life: 1.0,
-                decay: 0.02 + Math.random() * 0.03,
-                size: Math.random() * 8 + 4,
-                color: `rgba(150, 180, 210,`
+                life: 1.0, decay: 0.02 + Math.random() * 0.03,
+                size: Math.random() * 8 + 4, color: `rgba(150, 180, 210,`
             });
         }
 
@@ -414,36 +406,23 @@
             frame++;
 
             const lastTrackPoint = track[track.length - 1];
-            const dxEnd = car.x - lastTrackPoint.x;
-            const dyEnd = car.y - lastTrackPoint.y;
-            const distToEnd = Math.sqrt(dxEnd * dxEnd + dyEnd * dyEnd);
+            const distToEnd = Math.sqrt((car.x - lastTrackPoint.x)**2 + (car.y - lastTrackPoint.y)**2);
 
             let addedThisFrame = 0;
-            while (distToEnd < 400 && addedThisFrame < 10) {
+            while (distToEnd < 500 && addedThisFrame < 10) { // Увеличил дистанцию генерации
                 addTrackSegment();
                 addedThisFrame++;
                 const newLast = track[track.length - 1];
-                const dx = car.x - newLast.x;
-                const dy = car.y - newLast.y;
-                const newDist = Math.sqrt(dx * dx + dy * dy);
-                if (newDist >= 400) break;
+                if (Math.sqrt((car.x - newLast.x)**2 + (car.y - newLast.y)**2) >= 500) break;
             }
 
             let minDist = Infinity;
             for (let i = 0; i < track.length; i++) {
-                const dx = car.x - track[i].x;
-                const dy = car.y - track[i].y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < minDist) {
-                    minDist = dist;
-                }
+                const dist = Math.sqrt((car.x - track[i].x)**2 + (car.y - track[i].y)**2);
+                if (dist < minDist) minDist = dist;
             }
 
-            const onTrack = minDist < (TRACK_WIDTH / 2);
-            if (!onTrack) {
-                gameOver();
-                return;
-            }
+            if (minDist >= (TRACK_WIDTH / 2)) { gameOver(); return; }
 
             if (input.left) car.angle -= 0.05;
             if (input.right) car.angle += 0.05;
@@ -454,29 +433,21 @@
             const driftLag = 0.06 + (Math.abs(car.angle - Math.atan2(car.vx, -car.vy)) * 0.02);
             car.vx += (targetVx - car.vx) * driftLag;
             car.vy += (targetVy - car.vy) * driftLag;
-            car.x += car.vx;
-            car.y += car.vy;
-
+            car.x += car.vx; car.y += car.vy;
             car.currentSpeed += (car.baseSpeed - car.currentSpeed) * 0.05;
 
             const velocityAngle = Math.atan2(car.vx, -car.vy);
-            const driftAngle = Math.abs(car.angle - velocityAngle);
-            let normalizedDrift = driftAngle;
+            let normalizedDrift = Math.abs(car.angle - velocityAngle);
             if (normalizedDrift > Math.PI) normalizedDrift = Math.PI * 2 - normalizedDrift;
             car.driftFactor = normalizedDrift;
 
-            if (normalizedDrift > 0.15 && onTrack) {
+            if (normalizedDrift > 0.15) {
                 comboTimer = 60;
                 combo = Math.min(combo + 0.015, 5.0);
                 score += Math.floor(normalizedDrift * 15 * combo);
-
-                const cos = Math.cos(car.angle);
-                const sin = Math.sin(car.angle);
-                const rearX = car.x - sin * 18;
-                const rearY = car.y + cos * 18;
-                spawnSmoke(rearX - 8, rearY, car.angle, 1.5);
-                spawnSmoke(rearX + 8, rearY, car.angle, 1.5);
-
+                const cos = Math.cos(car.angle), sin = Math.sin(car.angle);
+                spawnSmoke(car.x - sin * 18 - 8, car.y + cos * 18, car.angle, 1.5);
+                spawnSmoke(car.x - sin * 18 + 8, car.y + cos * 18, car.angle, 1.5);
                 if (combo > 2.5 && Math.random() > 0.8) shake = 2;
             } else {
                 comboTimer--;
@@ -493,10 +464,7 @@
 
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life -= p.decay;
-                p.size += 0.4;
+                p.x += p.vx; p.y += p.vy; p.life -= p.decay; p.size += 0.4;
                 if (p.life <= 0) particles.splice(i, 1);
             }
 
@@ -505,7 +473,8 @@
         }
 
         function draw() {
-            ctx.fillStyle = '#0a0a14';
+            // 1. Фон
+            ctx.fillStyle = '#050510';
             ctx.fillRect(0, 0, width, height);
 
             ctx.save();
@@ -515,6 +484,36 @@
             const shakeY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
             ctx.translate(camX + shakeX, camY + shakeY);
 
+            // 2. Рисуем декорации (Деревья) ПОД трассой
+            decorations.forEach(d => {
+                ctx.save();
+                ctx.translate(d.x, d.y);
+                
+                // Свечение для некоторых деревьев
+                if (d.glowColor !== 'transparent') {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = d.glowColor;
+                    ctx.fillStyle = d.glowColor;
+                } else {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = d.baseColor;
+                }
+
+                ctx.beginPath();
+                if (d.type === 'pine') {
+                    // Стилизация под неоновую ёлку/треугольник
+                    ctx.moveTo(0, -d.size);
+                    ctx.lineTo(d.size * 0.6, d.size * 0.5);
+                    ctx.lineTo(-d.size * 0.6, d.size * 0.5);
+                } else {
+                    // Стилизация под круглое неоновое дерево
+                    ctx.arc(0, 0, d.size * 0.5, 0, Math.PI * 2);
+                }
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 3. Рисуем трассу (она перекрывает низ деревьев, создавая глубину)
             if (track.length > 1) {
                 ctx.shadowBlur = 12;
                 ctx.shadowColor = '#5b4a7a';
@@ -524,9 +523,7 @@
                 ctx.lineJoin = 'round';
                 ctx.beginPath();
                 ctx.moveTo(track[0].x, track[0].y);
-                for (let i = 1; i < track.length; i++) {
-                    ctx.lineTo(track[i].x, track[i].y);
-                }
+                for (let i = 1; i < track.length; i++) ctx.lineTo(track[i].x, track[i].y);
                 ctx.stroke();
 
                 ctx.shadowBlur = 0;
@@ -539,13 +536,12 @@
                 ctx.setLineDash([20, 30]);
                 ctx.beginPath();
                 ctx.moveTo(track[0].x, track[0].y);
-                for (let i = 1; i < track.length; i++) {
-                    ctx.lineTo(track[i].x, track[i].y);
-                }
+                for (let i = 1; i < track.length; i++) ctx.lineTo(track[i].x, track[i].y);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
 
+            // 4. Частицы и машина
             particles.forEach(p => {
                 ctx.fillStyle = p.color + p.life * 0.35 + ')';
                 ctx.beginPath();
@@ -565,8 +561,7 @@
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.roundRect(-car.width / 2, -car.height / 2, car.width, car.height, 5);
-                ctx.fill();
-                ctx.stroke();
+                ctx.fill(); ctx.stroke();
 
                 ctx.fillStyle = '#5b8a9f';
                 ctx.globalAlpha = 0.4;
@@ -585,9 +580,9 @@
                 ctx.shadowBlur = 10 * brakeIntensity;
                 ctx.fillRect(-car.width / 2 + 2, car.height / 2 - 3, 7, 3);
                 ctx.fillRect(car.width / 2 - 9, car.height / 2 - 3, 7, 3);
-
                 ctx.restore();
 
+                // Фары
                 ctx.save();
                 ctx.translate(car.x, car.y);
                 ctx.rotate(car.angle);
@@ -604,47 +599,26 @@
                 ctx.fill();
                 ctx.restore();
             }
-
             ctx.restore();
 
-            // === ЭФФЕКТ ЗАТЕМНЕНИЯ СЗАДИ (как было) ===
-            const backFadeHeight = 250;
-            const backGradient = ctx.createLinearGradient(
-                width / 2,
-                height * 0.75,
-                width / 2,
-                height * 0.75 + backFadeHeight
+            // 5. ГЛАВНЫЙ ЭФФЕКТ: Радиальный туман (Виньетка) вокруг машины
+            // Это заменяет конус. Он работает идеально при любых поворотах, 
+            // плавно скрывая края генерации и создавая атмосферу ночи.
+            const screenCarX = width / 2 + shakeX;
+            const screenCarY = height * 0.75 + shakeY;
+
+            // Эллиптический градиент (шире по горизонтали, чтобы имитировать перспективу)
+            const fogGrad = ctx.createRadialGradient(
+                screenCarX, screenCarY, 100,  // Внутренний радиус (полная видимость)
+                screenCarX, screenCarY, 800   // Внешний радиус (полная темнота)
             );
-            backGradient.addColorStop(0, 'rgba(10, 10, 20, 0)');
-            backGradient.addColorStop(1, 'rgba(10, 10, 20, 0.9)');
-            ctx.fillStyle = backGradient;
-            ctx.fillRect(0, 0, width, height);
+            fogGrad.addColorStop(0, 'rgba(5, 5, 16, 0)');      // Центр прозрачный
+            fogGrad.addColorStop(0.4, 'rgba(5, 5, 16, 0.3)');  // Мягкий переход
+            fogGrad.addColorStop(0.8, 'rgba(5, 5, 16, 0.85)'); // Густой туман
+            fogGrad.addColorStop(1, 'rgba(5, 5, 16, 0.98)');   // Полная темнота по краям
 
-            // === ЭФФЕКТ "ТУМАНА" СПЕРЕДИ НА ДОРОГЕ ===
-            // Рисуем конус тумана от машины вперёд
-            ctx.save();
-            ctx.translate(width / 2, height * 0.75);
-            ctx.rotate(car.angle);
-            
-            // Создаём радиальный градиент от машины
-            const fogDistance = 500; // расстояние тумана вперёд
-            const fogGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, fogDistance);
-            fogGradient.addColorStop(0, 'rgba(10, 10, 20, 0)');
-            fogGradient.addColorStop(0.3, 'rgba(10, 10, 20, 0)');
-            fogGradient.addColorStop(0.7, 'rgba(10, 10, 20, 0.4)');
-            fogGradient.addColorStop(1, 'rgba(10, 10, 20, 0.95)');
-            
-            // Рисуем трапецию (конус) от машины вперёд
-            ctx.fillStyle = fogGradient;
-            ctx.beginPath();
-            ctx.moveTo(-100, 0); // ширина у машины
-            ctx.lineTo(-400, -fogDistance); // ширина вдали
-            ctx.lineTo(400, -fogDistance);
-            ctx.lineTo(100, 0);
-            ctx.closePath();
-            ctx.fill();
-            
-            ctx.restore();
+            ctx.fillStyle = fogGrad;
+            ctx.fillRect(0, 0, width, height);
         }
 
         function loop() {
