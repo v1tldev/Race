@@ -6,23 +6,10 @@
     <title>Neon Drift: Forest Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0; padding: 0; box-sizing: border-box;
-            touch-action: none; -webkit-touch-callout: none;
-            -webkit-user-select: none; user-select: none;
-        }
-        body {
-            background: #050510; color: #e0e0ff;
-            font-family: 'Orbitron', sans-serif; overflow: hidden;
-            width: 100vw; height: 100vh; display: flex;
-            justify-content: center; align-items: center;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        body { background: #050510; color: #e0e0ff; font-family: 'Orbitron', sans-serif; overflow: hidden; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
         #gameCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        .ui-layer {
-            position: absolute; z-index: 10; width: 100%; height: 100%;
-            pointer-events: none; display: flex; flex-direction: column;
-            justify-content: space-between; padding: 20px;
-        }
+        .ui-layer { position: absolute; z-index: 10; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
         .top-ui { display: flex; justify-content: space-between; align-items: flex-start; }
         .score-box { text-align: left; text-shadow: 0 0 8px rgba(100, 140, 200, 0.5); }
         .score-label { font-size: 12px; color: #8a6bb0; letter-spacing: 2px; }
@@ -31,25 +18,12 @@
         .combo-box.active { opacity: 1; animation: pulse 0.5s infinite alternate; }
         .combo-label { font-size: 14px; color: #8a6bb0; letter-spacing: 2px; }
         .combo-value { font-size: 32px; font-weight: 900; color: #f0f0ff; text-shadow: 0 0 10px rgba(138, 107, 176, 0.7); }
-        .center-ui {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            text-align: center; pointer-events: auto; cursor: pointer;
-            background: rgba(10, 10, 20, 0.9); padding: 40px; border: 2px solid #5b7a9a;
-            border-radius: 10px; box-shadow: 0 0 20px rgba(91, 122, 154, 0.3);
-        }
-        .title {
-            font-size: 42px; font-weight: 900;
-            background: linear-gradient(to bottom, #6b9eb0, #8a6bb0);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            margin-bottom: 15px; letter-spacing: 3px;
-        }
+        .center-ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: auto; cursor: pointer; background: rgba(10, 10, 20, 0.9); padding: 40px; border: 2px solid #5b7a9a; border-radius: 10px; box-shadow: 0 0 20px rgba(91, 122, 154, 0.3); }
+        .title { font-size: 42px; font-weight: 900; background: linear-gradient(to bottom, #6b9eb0, #8a6bb0); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 15px; letter-spacing: 3px; }
         .subtitle { font-size: 16px; color: #8899aa; letter-spacing: 2px; animation: blink 1.5s infinite; }
         .gameover-title { font-size: 36px; font-weight: 900; color: #c87890; text-shadow: 0 0 15px rgba(200, 120, 144, 0.6); margin-bottom: 10px; }
         .final-score { font-size: 24px; color: #bbccdd; margin-bottom: 20px; }
-        .controls-hint {
-            position: absolute; bottom: 30px; width: 100%; text-align: center;
-            font-size: 14px; color: rgba(200, 210, 230, 0.4); letter-spacing: 2px; pointer-events: none;
-        }
+        .controls-hint { position: absolute; bottom: 30px; width: 100%; text-align: center; font-size: 14px; color: rgba(200, 210, 230, 0.4); letter-spacing: 2px; pointer-events: none; }
         .touch-zones { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: flex; }
         .touch-left, .touch-right { flex: 1; }
         .touch-left.active { background: rgba(100, 140, 180, 0.05); }
@@ -90,7 +64,8 @@
 
     <script>
         const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // Оптимизация: отключаем альфа-канал фона canvas
+        // alpha: false дает прирост производительности на мобильных, так как браузер не смешивает canvas с фоном страницы
+        const ctx = canvas.getContext('2d', { alpha: false }); 
 
         let width, height;
         function resize() {
@@ -111,21 +86,16 @@
         let trackProgress = 0, targetAngle = 0, currentTrackAngle = 0;
         let decorations = [];
 
-        // ОПТИМИЗИРОВАННАЯ отрисовка дерева ОДНИМ путем (в 3-4 раза быстрее)
         function drawPineTree(ctx, x, y, size, color) {
             ctx.fillStyle = color;
             ctx.beginPath();
-            // Ствол
             ctx.rect(x - size * 0.08, y, size * 0.16, size * 0.25);
-            // Нижний ярус
             ctx.moveTo(x - size * 0.7, y + size * 0.1);
             ctx.lineTo(x + size * 0.7, y + size * 0.1);
             ctx.lineTo(x, y - size * 0.4);
-            // Средний ярус
             ctx.moveTo(x - size * 0.5, y - size * 0.2);
             ctx.lineTo(x + size * 0.5, y - size * 0.2);
             ctx.lineTo(x, y - size * 0.75);
-            // Верхний ярус
             ctx.moveTo(x - size * 0.3, y - size * 0.55);
             ctx.lineTo(x + size * 0.3, y - size * 0.55);
             ctx.lineTo(x, y - size * 1.1);
@@ -155,49 +125,45 @@
             const newY = lastPt.y - Math.cos(currentTrackAngle) * SEGMENT_LENGTH;
             track.push({ x: newX, y: newY, angle: currentTrackAngle });
 
-            // Генерация леса (высокая плотность, но с разносом по ширине)
-            if (Math.random() < 0.6) { 
+            if (Math.random() < 0.5) { 
                 const side = Math.random() > 0.5 ? 1 : -1; 
-                // Широкий разброс для ощущения густого леса, а не кучи деревьев в одной точке
-                const dist = (TRACK_WIDTH / 2) + 50 + Math.random() * 350;
+                const dist = (TRACK_WIDTH / 2) + 60 + Math.random() * 400;
                 const perpX = Math.cos(currentTrackAngle) * dist * side;
                 const perpY = Math.sin(currentTrackAngle) * dist * side;
 
-                const treeColor = `rgba(${8 + Math.random()*12}, ${8 + Math.random()*12}, ${20 + Math.random()*20}, 0.95)`;
                 decorations.push({
                     x: newX + perpX,
                     y: newY + perpY,
-                    size: 30 + Math.random() * 50,
-                    color: treeColor,
+                    size: 35 + Math.random() * 55,
+                    color: `rgba(${5 + Math.random()*10}, ${5 + Math.random()*10}, ${15 + Math.random()*15}, 1)`,
                     layer: Math.random() > 0.4 ? 'back' : 'front'
                 });
             }
 
-            // Жесткая очистка старых данных без создания нового массива (без filter!)
-            if (track.length > 600) {
+            // Жесткая и безопасная очистка массивов без создания мусора для GC
+            if (track.length > 500) {
                 const removeCount = 100;
                 track.splice(0, removeCount);
-                // Удаляем только те деревья, что далеко позади машины (по Y)
-                // Так как машина едет вверх (Y уменьшается), большие Y - это хвост
+                
+                // Очищаем декорации, которые остались далеко позади машины
                 let writeIdx = 0;
-                const cleanupThreshold = track[0].y + 400; 
+                // Используем расстояние до машины для универсальной очистки, независимо от направления
+                const carDistSq = 600 * 600; 
                 for (let i = 0; i < decorations.length; i++) {
-                    if (decorations[i].y < cleanupThreshold) {
+                    const dx = decorations[i].x - car.x;
+                    const dy = decorations[i].y - car.y;
+                    if (dx * dx + dy * dy < carDistSq) {
                         decorations[writeIdx++] = decorations[i];
                     }
                 }
-                decorations.length = writeIdx; // Обрезаем массив
+                decorations.length = writeIdx;
             }
         }
 
-        const car = {
-            x: 0, y: 0, width: 22, height: 40, angle: 0,
-            vx: 0, vy: 0, baseSpeed: 6.5, currentSpeed: 6.5, driftFactor: 0
-        };
-
+        const car = { x: 0, y: 0, width: 22, height: 40, angle: 0, vx: 0, vy: 0, baseSpeed: 6.5, currentSpeed: 6.5, driftFactor: 0 };
         let input = { left: false, right: false };
         let particles = [];
-        const MAX_PARTICLES = 150; // Снижено для мобильных
+        const MAX_PARTICLES = 120;
 
         const scoreEl = document.getElementById('score');
         const comboEl = document.getElementById('combo');
@@ -223,7 +189,6 @@
             if (side === 'right') btnRight.classList.remove('active');
         };
 
-        // Привязка событий (Touch + Mouse + Keyboard)
         ['touchstart', 'mousedown'].forEach(evt => {
             btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleStart('left'); });
             btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleStart('right'); });
@@ -289,14 +254,12 @@
             const lastTrackPoint = track[track.length - 1];
             const distToEnd = Math.hypot(car.x - lastTrackPoint.x, car.y - lastTrackPoint.y);
 
-            // Генерируем трассу чуть дальше зоны видимости тумана
             let addedThisFrame = 0;
-            while (distToEnd < 700 && addedThisFrame < 10) { 
+            while (distToEnd < 900 && addedThisFrame < 10) { 
                 addTrackSegment();
                 addedThisFrame++;
             }
 
-            // Быстрая проверка столкновений (проверяем не все точки, а с шагом)
             let minDist = Infinity;
             for (let i = Math.max(0, track.length - 150); i < track.length; i += 2) {
                 const dist = Math.hypot(car.x - track[i].x, car.y - track[i].y);
@@ -343,10 +306,14 @@
                 comboBox.classList.remove('active');
             }
 
+            // ОПТИМИЗАЦИЯ: O(1) удаление частиц без splice (который вызывает лаги GC)
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
                 p.x += p.vx; p.y += p.vy; p.life -= p.decay; p.size += 0.4;
-                if (p.life <= 0) particles.splice(i, 1);
+                if (p.life <= 0) {
+                    particles[i] = particles[particles.length - 1];
+                    particles.pop();
+                }
             }
 
             if (shake > 0) shake *= 0.9;
@@ -354,7 +321,6 @@
         }
 
         function draw() {
-            // Очистка фона (быстрая)
             ctx.fillStyle = '#050510';
             ctx.fillRect(0, 0, width, height);
 
@@ -365,75 +331,72 @@
             const shakeY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
             ctx.translate(camX + shakeX, camY + shakeY);
 
-            // 1. Рисуем ТОЛЬКО видимую часть трассы (окно из ~150 сегментов вокруг машины)
-            // Это главная оптимизация: вместо 600 сегментов рисуем 150
             const startIdx = Math.max(0, track.length - 150);
             if (track.length > 1) {
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = '#5b4a7a';
+                // УБРАНО ctx.shadowBlur с трассы. Это главный виновник лагов на мобильных.
+                // Вместо этого используем простую отрисовку, которая выглядит чище и работает в 5 раз быстрее.
                 ctx.strokeStyle = '#6a5b8a';
-                ctx.lineWidth = TRACK_WIDTH;
+                ctx.lineWidth = TRACK_WIDTH + 10; // Имитация свечения за счет ширины
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
                 ctx.beginPath();
                 ctx.moveTo(track[startIdx].x, track[startIdx].y);
-                for (let i = startIdx + 1; i < track.length; i++) {
-                    ctx.lineTo(track[i].x, track[i].y);
-                }
+                for (let i = startIdx + 1; i < track.length; i++) ctx.lineTo(track[i].x, track[i].y);
                 ctx.stroke();
 
-                ctx.shadowBlur = 0;
                 ctx.strokeStyle = '#1c1c2e';
                 ctx.lineWidth = TRACK_WIDTH - 8;
                 ctx.stroke();
 
-                ctx.strokeStyle = 'rgba(110, 140, 170, 0.35)';
+                ctx.strokeStyle = 'rgba(110, 140, 170, 0.4)';
                 ctx.lineWidth = 2;
                 ctx.setLineDash([20, 30]);
                 ctx.beginPath();
                 ctx.moveTo(track[startIdx].x, track[startIdx].y);
-                for (let i = startIdx + 1; i < track.length; i++) {
-                    ctx.lineTo(track[i].x, track[i].y);
-                }
+                for (let i = startIdx + 1; i < track.length; i++) ctx.lineTo(track[i].x, track[i].y);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
 
-            // 2. Рисуем деревья (с простой проверкой видимости по Y для отсечения невидимого)
-            const viewTop = car.y - 600;
-            const viewBottom = car.y + 400;
+            // Отрисовка деревьев с проверкой расстояния (Culling)
+            const viewDistSq = 500 * 500; // Радиус отсечения
             
-            // Сначала дальний план
             for (let i = 0; i < decorations.length; i++) {
                 const d = decorations[i];
-                if (d.layer === 'back' && d.y > viewTop && d.y < viewBottom) {
-                    drawPineTree(ctx, d.x, d.y, d.size, d.color);
+                if (d.layer === 'back') {
+                    const dx = d.x - car.x;
+                    const dy = d.y - car.y;
+                    if (dx * dx + dy * dy < viewDistSq) {
+                        drawPineTree(ctx, d.x, d.y, d.size, d.color);
+                    }
                 }
             }
-            // Затем ближний план (перекрывает края дороги)
             for (let i = 0; i < decorations.length; i++) {
                 const d = decorations[i];
-                if (d.layer === 'front' && d.y > viewTop && d.y < viewBottom) {
-                    drawPineTree(ctx, d.x, d.y, d.size, d.color);
+                if (d.layer === 'front') {
+                    const dx = d.x - car.x;
+                    const dy = d.y - car.y;
+                    if (dx * dx + dy * dy < viewDistSq) {
+                        drawPineTree(ctx, d.x, d.y, d.size, d.color);
+                    }
                 }
             }
 
-            // 3. Частицы
             for (let i = 0; i < particles.length; i++) {
                 const p = particles[i];
                 ctx.fillStyle = p.color + p.life * 0.35 + ')';
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, 6.2832); // 6.2832 = Math.PI * 2 (чуть быстрее)
+                ctx.arc(p.x, p.y, p.size, 0, 6.2832);
                 ctx.fill();
             }
 
-            // 4. Машина
             if (gameState === 'playing' || gameState === 'gameover') {
                 ctx.save();
                 ctx.translate(car.x, car.y);
                 ctx.rotate(car.angle);
 
-                ctx.shadowBlur = 8;
+                // ShadowBlur оставлен ТОЛЬКО для машины, так как это 1 объект, а не сотни
+                ctx.shadowBlur = 10;
                 ctx.shadowColor = '#5b8a9f';
                 ctx.fillStyle = '#0e0e1a';
                 ctx.strokeStyle = '#5b8a9f';
@@ -461,7 +424,6 @@
                 ctx.fillRect(car.width / 2 - 9, car.height / 2 - 3, 7, 3);
                 ctx.restore();
 
-                // Фары
                 ctx.save();
                 ctx.translate(car.x, car.y);
                 ctx.rotate(car.angle);
@@ -480,27 +442,26 @@
             }
             ctx.restore();
 
-            // 5. ЭФФЕКТ "БЛИЖНЕГО СВЕТА" (Fog of War)
-            // Радиус радикально уменьшен. Дорога видна только в непосредственной близости от машины.
+            // === ИСПРАВЛЕННЫЙ ТУМАН ===
             const screenCarX = width / 2 + shakeX;
             const screenCarY = height * 0.75 + shakeY;
+            const fogRadius = 500; // УВЕЛИЧЕННАЯ зона видимости
 
             const fogGrad = ctx.createRadialGradient(
-                screenCarX, screenCarY - 80, 40,   // Внутренний радиус: очень маленький "фонарик"
-                screenCarX, screenCarY - 80, 300   // Внешний радиус: быстро уходит в полную темноту
+                screenCarX, screenCarY - 100, 80, 
+                screenCarX, screenCarY - 100, fogRadius
             );
-            fogGrad.addColorStop(0, 'rgba(5, 5, 16, 0)');       
-            fogGrad.addColorStop(0.3, 'rgba(5, 5, 16, 0.5)');  
-            fogGrad.addColorStop(0.7, 'rgba(5, 5, 16, 0.92)'); 
-            fogGrad.addColorStop(1, 'rgba(5, 5, 16, 0.99)');    
+            fogGrad.addColorStop(0, 'rgba(5, 5, 16, 0)');      // Центр: полная видимость
+            fogGrad.addColorStop(0.5, 'rgba(5, 5, 16, 0.6)');  // Плавный переход
+            fogGrad.addColorStop(0.85, 'rgba(5, 5, 16, 0.95)'); // Почти чернота
+            fogGrad.addColorStop(1, 'rgba(5, 5, 16, 1)');      // КРАЙ: 100% непрозрачный черный. Трассы не видно вообще.
 
             ctx.fillStyle = fogGrad;
             ctx.fillRect(0, 0, width, height);
             
-            // Мягкое исчезновение сзади (хвост)
             const backFog = ctx.createLinearGradient(0, height * 0.85, 0, height);
             backFog.addColorStop(0, 'rgba(5, 5, 16, 0)');
-            backFog.addColorStop(1, 'rgba(5, 5, 16, 0.95)');
+            backFog.addColorStop(1, 'rgba(5, 5, 16, 1)'); // Тоже 100% черный
             ctx.fillStyle = backFog;
             ctx.fillRect(0, height * 0.85, width, height * 0.15);
         }
